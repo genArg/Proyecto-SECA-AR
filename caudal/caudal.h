@@ -2,7 +2,7 @@
 #ifndef CAUDAL_H
 #define CAUDAL_H
 
-#define LEE_ENTRADA digitalRead(pin_a)
+#define LEER_ENTRADA digitalRead(pin_a)
 #define NUMB_ELEMENTS 5 // numero de elementos del vector
 #define CAUDAL_MINIMO 0 //caudal minimo como filtro
 //! puntero a un caudalimetro de 1 señal
