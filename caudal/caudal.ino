@@ -31,7 +31,7 @@ void loop() {
 
 // Verifica que la señal sea
 void Verificar(caudalimetro_t cauda) {
-  cauda->entrada = LEE_ENTRADA;
+  cauda->entrada = LEER_ENTRADA;
   if (cauda->entrada != cauda->entrada_prev) {
     cauda->tiempo_prev = cauda->tiempo;
     cauda->tiempo = TomarTiempo();
