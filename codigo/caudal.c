@@ -1,9 +1,4 @@
 #include "caudal.h"
-// Macros
-#define pin_a 51
-#define pin_b 52
-
-
 // Estructra
 struct caudalimetro_s {
   bool entrada;
@@ -14,31 +9,21 @@ struct caudalimetro_s {
   uint16_t indice;
   uint16_t caudal_promedio;
   uint16_t caudal[NUMB_ELEMENTS];
+  bool logica;
 };
 
-caudalimetro_t caudalimetro;  // crea un caudalimetro
-
-void setup() {
-  // put your setup code here, to run once:
-  pinMode(pin_a, INPUT);
-  IniciarValores(caudalimetro);
-}
-
-void loop() {
-  // put your main code here, to run repeatedly:
-  Verificar(caudalimetro);
-}
-
-// Verifica que la señal sea
+// Verifica que la señal sea true
 void Verificar(caudalimetro_t cauda) {
   cauda->entrada = LEER_ENTRADA;
-  if (cauda->entrada != cauda->entrada_prev) {
+  if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada == (true ^ cauda->logica))) {
     cauda->tiempo_prev = cauda->tiempo;
     cauda->tiempo = TomarTiempo();
     cauda->entrada_prev = cauda->entrada;
   }
+  if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada != (true ^ cauda->logica))) {
+    cauda->entrada_prev = cauda->entrada;
+  }
 }
-
 // Inicia los valores del caudalimetro
 void IniciarValores(caudalimetro_t cauda) {
   if (cauda) {
@@ -49,6 +34,7 @@ void IniciarValores(caudalimetro_t cauda) {
     cauda->constante = 100;
     cauda->indice = 0;
     cauda->caudal_promedio = 0;
+    cauda->logica = false;
     for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
       cauda->caudal[i] = 0;
     }
@@ -62,7 +48,7 @@ void ParametrizarCaudalimetro(caudalimetro_t cauda, uint16_t constante) {
     cauda->constante = 1000;
   }
 }
-
+// realiza caulculos del caudal
 void CalculoCaudal(caudalimetro_t cauda) {
   uint16_t delta_tiempo = cauda->tiempo - cauda->tiempo_prev;
   delta_tiempo = delta_tiempo / 3600;  // tiempo en hora
@@ -81,6 +67,3 @@ void CalculoCaudal(caudalimetro_t cauda) {
   }
 }
 
-
-// es el tiempo que se toma del RTC
-uint16_t TomarTiempo() {}

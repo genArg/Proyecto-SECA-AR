@@ -2,9 +2,13 @@
 #ifndef CAUDAL_H
 #define CAUDAL_H
 
-#define LEER_ENTRADA digitalRead(pin_a)
-#define NUMB_ELEMENTS 5 // numero de elementos del vector
-#define CAUDAL_MINIMO 0 //caudal minimo como filtro
+#include "tiempo.h"
+#include "define.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //! puntero a un caudalimetro de 1 señal
 typedef struct caudalimetro_s * caudalimetro_t;
 
@@ -15,9 +19,13 @@ void Verificar(caudalimetro_t cauda);
 void IniciarValores(caudalimetro_t cauda);
 
 //
-void ParametrizarCaudalimetro();
+void ParametrizarCaudalimetro(caudalimetro_t cauda, uint16_t constante);
 
 //! Realiza el calculo del caudal en litros por hora en funcion al tiempo
-void CalculoCaudal();
+void CalculoCaudal(caudalimetro_t cauda);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
