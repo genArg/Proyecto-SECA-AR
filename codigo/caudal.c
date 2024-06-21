@@ -3,8 +3,8 @@
 struct caudalimetro_s {
   bool entrada;
   bool entrada_prev;
-  uint16_t tiempo;
-  uint16_t tiempo_prev;
+  uint32_t tiempo;
+  uint32_t tiempo_prev;
   uint16_t constante;
   uint16_t indice;
   uint16_t caudal_promedio;
@@ -53,17 +53,17 @@ void CalculoCaudal(caudalimetro_t cauda) {
   uint16_t delta_tiempo = cauda->tiempo - cauda->tiempo_prev;
   delta_tiempo = delta_tiempo / 3600;  // tiempo en hora
   cauda->caudal[cauda->indice] = cauda->constante / delta_tiempo;
-  cauda->indice++;
+  cauda->indice = (cauda->indice + 1) % NUMB_ELEMENTS;
   // calculo del caudal medio
   uint8_t cantidad = 0;
   uint16_t sumatoria = 0;
-  for (uint8_t i = 0; i < 5; i++) {
-    if (cauda->caudal[i] > CAUDAL_MINIMO)
-      sumatoria = +cauda->caudal[i];
-    cantidad++;
+  for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
+    if (cauda->caudal[i] > CAUDAL_MINIMO) {
+      sumatoria += cauda->caudal[i];
+      cantidad++;
+    }
   }
   if (cantidad > 0) {
     cauda->caudal_promedio = sumatoria / cantidad;
   }
 }
-

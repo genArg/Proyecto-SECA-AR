@@ -8,8 +8,6 @@
 extern "C" {
 #endif
 
-#include "define.h"
-
 // es el tiempo que se toma del RTC
 uint16_t TomarTiempo();
 

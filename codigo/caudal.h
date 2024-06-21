@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 //! puntero a un caudalimetro de 1 señal
-typedef struct caudalimetro_s * caudalimetro_t;
+typedef struct caudalimetro_s* caudalimetro_t;
 
 //! verifica señal del caudalimetro
 void Verificar(caudalimetro_t cauda);
