@@ -1,6 +1,6 @@
 #include "presion.h"
 
-uint16_t RealizarCalculos(manometro_t man);
+uint16_t RealizarCalculos(manometro_t man, uint16_t adc_presion);
 
 struct manometro_s {
   uint16_t presion[NUMB_PRESS];
@@ -34,8 +34,8 @@ void InicializarManometro(manometro_t man) {
   }
 }
 
-void TomarValor(manometro_t man) {
-  man->presion[man->indice] = RealizarCalculos(man);
+void TomarValor(manometro_t man, uint16_t entrada) {
+  man->presion[man->indice] = RealizarCalculos(man, entrada);
   man->indice = (man->indice + 1) % NUMB_PRESS;
   // calculo de la presion media
   uint8_t cantidad = 0;
@@ -51,20 +51,87 @@ void TomarValor(manometro_t man) {
   }
 }
 
-void ParametrizarPresion(manometro_t man) {
-  /*realizar el el codigo de la logica para realizar la parametrizacion
+/*realizar el el codigo de la logica para realizar la parametrizacion
   del medidor de presion y el hardware adicional a la placa como la reistencia*/
+void ParametrizarPresionMax(manometro_t man, uint16_t valor) {
+  //presion maxima
+  man->presion_max = valor;
+}
+
+void ParametrizarCorrienteMax(manometro_t man, uint16_t valor) {
+  //corriente maxima
+  man->corriente_max = valor;
+}
+
+void ParametrizarPresionMin(manometro_t man, uint16_t valor) {
+  //presion minima
+  man->presion_min = valor;
+}
+
+void ParametrizarCorrienteMin(manometro_t man, uint16_t valor) {
+  //corriente minima
+  man->corriente_min = valor;
+}
+
+void ParametrizarResistencia(manometro_t man, uint16_t valor) {
+  //resistencia
+  man->resistencia = valor;
 }
 
 // realiza el caulculo de prsion real en funcion de los parametros del manometro
-uint16_t RealizarCalculos(manometro_t man) {
-  uint16_t adc_presion = LEER_PRESION;
+uint16_t RealizarCalculos(manometro_t man, uint16_t entrada) {
+  uint16_t adc_presion;
+  if (entrada) {
+    adc_presion = LEER_PRESION_1;
+  } else {
+    adc_presion = LEER_PRESION_0;
+  }
   uint16_t presion = 0;
   uint16_t adc_minimo = 0;
   uint16_t pendiente = 0;
   pendiente = (man->presion_max - man->presion_min) / (man->adc_max - man->adc_min);
   // realizar logica si el la tension es mayor que el permitido por el adc
-  //y tambien si el adc entrega un valor menor que el menor permitido 
-  presion = man->presion_min + (pendiente * (adc_presion - man->adc_min)); 
+  //y tambien si el adc entrega un valor menor que el menor permitido
+  presion = man->presion_min + (pendiente * (adc_presion - man->adc_min));
   return presion;
+}
+
+uint16_t ValoresManometro(manometro_t man, uint16_t valor) {
+  uint16_t auxiliar;
+  switch (valor) {
+    case 1:
+      auxiliar = man->presion_media;
+      break;
+    case 2:
+      auxiliar = man->corriente_min;
+      break;
+    case 3:
+      auxiliar = man->corriente_max;
+      break;
+    case 4:
+      auxiliar = man->resistencia;
+      break;
+    case 5:
+      auxiliar = man->presion_min;
+      break;
+    case 6:
+      auxiliar = man->presion_max;
+      break;
+    case 7:
+      auxiliar = man->tension_min;
+      break;
+    case 8:
+      auxiliar = man->tension_max;
+      break;
+    case 9:
+      auxiliar = man->adc_min;
+      break;
+    case 10:
+      auxiliar = man->adc_max;
+      break;
+    default:
+      auxiliar = 420;
+      break;
+  }
+  return auxiliar;
 }
