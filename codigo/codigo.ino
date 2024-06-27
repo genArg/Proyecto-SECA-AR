@@ -9,8 +9,8 @@
 caudalimetro_t caudalimetro;  // crea un caudalimetro
 char mensaje[] = "mensaje";
 char letra;
-caudalimetro_t caudalimetro_1;
-manometro_t manometro_1;
+static manometro_t manometro_1;
+static caudalimetro_t caudalimetro_1;
 uint16_t valor_aux;
 
 void setup() {
@@ -19,6 +19,9 @@ void setup() {
   //IniciarValores(caudalimetro);
   Serial.begin(9600);
   valor_aux = 12349;
+  manometro_1 = InicializarManometro();
+  ParametrizarCorrienteMin(manometro_1, 70);
+  caudalimetro_1 = InicializarCaudal();
 }
 
 void loop() {
@@ -28,13 +31,20 @@ void loop() {
   //int valorAnalogico = analogRead(A15);
 
   // Imprimir el valor leído en el monitor serie
-  Serial.print("Valor analógico leído: ");
+  
 
-  valor_aux = PruevaFuncion();
-  //valor_aux = ValoresManometro(manometro_1, 1);
+  //valor_aux = PruevaFuncion();
+  
 
-  Serial.println(valor_aux);
+  //Serial.println(valor_aux);
 
   // Esperar 500 milisegundos antes de la próxima lectura
+  Serial.print("Valor manometro: ");
+  valor_aux = ValoresManometro(manometro_1, 4);
+  Serial.println(valor_aux);
+  delay(1000);
+  Serial.print("Valor caudalimetro: ");
+  valor_aux = ValoresCaudal(caudalimetro_1, 2);
+  Serial.println(valor_aux);
   delay(1000);
 }
