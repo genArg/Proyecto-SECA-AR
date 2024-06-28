@@ -43,10 +43,25 @@ char buffer[20];       // Buffer para almacenar la cadena
 caudalimetro_t caudalimetro;  // crea un caudalimetro
 char mensaje[] = "mensaje";
 char letra;
+static manometro_t nivel_alto;
+static manometro_t nivel_bajo;
 static manometro_t manometro_1;
 static caudalimetro_t caudalimetro_1;
+static caudalimetro_t caudalimetro_2;
 static reloj_t reloj_1;
-int happy = 0; //para el led feliz
+uint8_t happy = 0;  //para el led feliz
+uint8_t aux_refresh = 0; // para tener un frame por segundo
+uint16_t contador_compresor = 1;
+uint8_t bit_compresor = 0;
+uint8_t i_dif = 0;  // cantidad de niveles dinamicos sobre cantidad de valores estaticos
+uint16_t contador_10s = 1;
+uint8_t bit_10s = 0;
+uint16_t contador_1m = 1;
+uint8_t bit_1m = 0;
+float caudal_especifico = 0;
+float aux_float = 0;
+float aux_float_2 = 0;
+
 uint16_t valor_aux;  // varibale de pruebas
 
 void setup() {
@@ -60,11 +75,14 @@ void setup() {
   Pantalla_1();
 
 
-  Serial.begin(9600);
+  //Serial.begin(9600);
   //Serial.println("OK");
 
+  nivel_alto = InicializarManometro();
+  nivel_bajo = InicializarManometro();
   manometro_1 = InicializarManometro();
   caudalimetro_1 = InicializarCaudal();
+  caudalimetro_2 = InicializarCaudal();
   reloj_1 = InicializarReloj();
 
 
@@ -74,6 +92,9 @@ void setup() {
   pinMode(PIN_OUT_COMPRESOR, OUTPUT);
   pinMode(PIN_HAPPY, OUTPUT);
 
+  //apaga el compresor
+  digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
+
   //analogRead(pin_analogico_0);
   Timer1.initialize(1000000);          // Inicializa el temporizador a 1 segundo (1000000 µs)
   Timer1.attachInterrupt(FnCallback);  // Adjunta la función de callback
@@ -81,16 +102,65 @@ void setup() {
 
 void loop() {
 
-  if(digitalRead(PIN_READY)){
-    digitalWrite(PIN_OUT_COMPRESOR, HIGH);
+  if (digitalRead(PIN_READY)) {
+    if (bit_compresor) {
+      digitalWrite(PIN_OUT_COMPRESOR, HIGH);  // enciende compresor
+      if (bit_10s) {                          //esperar que el 10 segundos para realizar la lectura
+        for (int i = 0; i < 5; i++) {
+          TomarValor(nivel_bajo, LEER_PRESION_1);  //almacenar valor de nivel bajo
+        }
+        i_dif++;  //aumenta el contador de evento
+        bit_compresor = 0;
+        bit_10s = 0;
+        contador_10s = 1;
+        digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
+      }
+    }
+  } else {
+    if (bit_compresor || (i_dif > 3)) {       /*contador de evento > 3*/
+      digitalWrite(PIN_OUT_COMPRESOR, HIGH);  // enciende compresor
+      if (bit_10s) {                          //esperar que el 10 segundos para realizar la lectura
+        for (int i = 0; i < 5; i++) {
+          TomarValor(nivel_alto, LEER_PRESION_1);  //almacenar valor de nivel alto
+        }
+        i_dif = 0;  //resetea el contador de evento
+        bit_compresor = 0;
+        bit_10s = 0;
+        contador_10s = 1;
+        digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
+      }
+    }
+  }
+  // medir presion
+  if (bit_1m) {
+    for (int i = 0; i < 5; i++) {
+      TomarValor(manometro_1, LEER_PRESION_0);  //almacenar valor de nivel bajo
+    }
+    bit_1m = 0;
+    contador_1m = 1;
   }
 
-// Pantalla
+  // realiza los calculos del caudal especifico
+  CalcularQEspecifico();
+
+  //guarda en sd
+
+  // muestra los valores en pantalla
+
+
+  // Pantalla
   if (pant) {
     Tactil_2();
+    RefrescarPantalla_2();
   } else {
+    if (happy ^ aux_refresh) {
+      RefrescarPantalla_1();
+      aux_refresh = (aux_refresh) ? 0 : 1;
+    }
+
     Tactil_1();
   }
+
 
   digitalWrite(PIN_HAPPY, happy);
 }
@@ -99,14 +169,78 @@ void loop() {
 void FnCallback() {
   // para el led happy
   happy = (happy) ? 0 : 1;
+
+  // timer del compresor
+  contador_compresor = (contador_compresor + 1) % VALOR_COMPRESOR;
+  if (contador_compresor == 0) {
+    bit_compresor = 1;
+  }
+
+  // timer para contar 10 seg despues de iniciar el compresor
+  if (bit_compresor) {
+    contador_10s = (contador_10s + 1) % 11;
+  }
+  if (contador_10s == 0) {
+    bit_10s = 1;
+  }
+
+  // timer para contar 1 min para tomar la presion
+  contador_1m = (contador_1m + 1) % 61;
+  if (contador_1m == 0) {
+    bit_1m = 1;
+  }
+
+
   // aumenta en 1 segundo el reloj interno
   UnSegundoReloj(reloj_1);
-  
 }
 
 
+// Calcula el caudal especifico
+void CalcularQEspecifico() {
+  if (nivel_alto->presion_media && nivel_bajo->presion_media && caudalimetro_1->caudal_promedio && caudalimetro_2->caudal_promedio) {
+    if (caudalimetro_1->caudal_promedio && caudalimetro_2->caudal_promedio) {
+      aux_float = (caudalimetro_1->caudal_promedio + caudalimetro_2->caudal_promedio) / 2;
+    } else if (caudalimetro_1->caudal_promedio) {
+      aux_float = caudalimetro_1->caudal_promedio;
+    } else if (caudalimetro_2->caudal_promedio) {
+      aux_float = caudalimetro_2->caudal_promedio;
+    }
+
+    if (nivel_alto->presion_media && nivel_bajo->presion_media) {
+      aux_float_2 = nivel_alto->presion_media - nivel_bajo->presion_media;
+    }
+
+    caudal_especifico = (aux_float) / (aux_float_2);  // calcula el caudal especifico
+  }
+}
+
+//Refresca el valr de la pantalla 1
+void RefrescarPantalla_1() {
+  MostrarValorPantalla(reloj_1->segundo, 0);            //hora
+  MostrarValorPantalla(manometro_1->presion_media, 1);  //presion
+  MostrarValorPantalla(aux_float, 2);                   //caudal
+  MostrarValorPantalla(nivel_alto->presion_media, 3);   //nivel estatico
+  MostrarValorPantalla(nivel_bajo->presion_media, 4);   //nivel dinamico
+}
+//Refresca el valr de la pantalla 2
+void RefrescarPantalla_2(){
+
+}
 
 
+// Verifica que la señal sea true
+void Verificar(caudalimetro_t cauda) {
+  cauda->entrada = LEER_ENTRADA;
+  if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada == (true ^ cauda->logica))) {
+    cauda->tiempo_prev = cauda->tiempo;
+    cauda->tiempo = TomarTiempo(reloj_1);
+    cauda->entrada_prev = cauda->entrada;
+  }
+  if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada != (true ^ cauda->logica))) {
+    cauda->entrada_prev = cauda->entrada;
+  }
+}
 
 
 

@@ -13,7 +13,7 @@ extern "C" {
   typedef struct caudalimetro_s* caudalimetro_t;
 
   //! verifica señal del caudalimetro
-  void Verificar(caudalimetro_t cauda);
+  //void Verificar(caudalimetro_t cauda);
 
   //! Inicializa los valores del caudalimetro
   caudalimetro_t InicializarCaudal();
@@ -42,18 +42,7 @@ extern "C" {
     bool logica;
   };
 
-  // Verifica que la señal sea true
-  void Verificar(caudalimetro_t cauda) {
-    cauda->entrada = LEER_ENTRADA;
-    if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada == (true ^ cauda->logica))) {
-      cauda->tiempo_prev = cauda->tiempo;
-      cauda->tiempo = TomarTiempo();
-      cauda->entrada_prev = cauda->entrada;
-    }
-    if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada != (true ^ cauda->logica))) {
-      cauda->entrada_prev = cauda->entrada;
-    }
-  }
+  
   // Inicia los valores del caudalimetro
   caudalimetro_t InicializarCaudal() {
     static struct caudalimetro_s cauda[1];

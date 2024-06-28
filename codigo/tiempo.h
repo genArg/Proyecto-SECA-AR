@@ -8,8 +8,10 @@
 extern "C" {
 #endif
 
+  typedef struct reloj_s* reloj_t;
+
   // es el tiempo que se toma del RTC
-  uint16_t TomarTiempo();
+  uint32_t TomarTiempo(reloj_t reloj);
 
 
 
@@ -18,7 +20,7 @@ extern "C" {
 
 #if RTC == true
 
-  uint16_t TomarTiempo() {
+  uint32_t TomarTiempo(reloj_t reloj) {
     return 1;
   }
 
@@ -27,7 +29,6 @@ extern "C" {
 //////////////////////////////////////////////////////
 #if RTC == false
   //! puntero a un reloj de 1 señal
-  typedef struct reloj_s* reloj_t;
 
   // Estructra
   struct reloj_s {
@@ -80,13 +81,13 @@ extern "C" {
     }
   }
 
-  uint16_t TomarTiempo() {
-    extern reloj_t reloj_1;
+  uint32_t TomarTiempo(reloj_t reloj) {
     uint16_t a, b, c;
-    c = reloj_1->segundo;
-    b = reloj_1->minuto;
-    a = reloj_1->hora;
-    uint32_t tiempo = (a * 3600) + (b * 60) + c;
+    c = reloj->segundo;
+    b = reloj->minuto;
+    a = reloj->hora;
+    uint32_t tiempo;
+    tiempo = (a * 3600) + (b * 60) + c;
 
     return tiempo;
   }

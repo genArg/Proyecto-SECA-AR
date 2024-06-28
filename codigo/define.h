@@ -49,9 +49,9 @@ extern "C" {
 //! definiciones del codigo del manometros
 #define NUMB_PRESS 5
 #define pin_analogico_0 A14
-#define LEER_PRESION_0 analogRead(pin_analogico_0) // Leer el valor del pin analógico A14
+#define LEER_PRESION_0 analogRead(pin_analogico_0) // Leer el valor del pin analógico A14 // presion
 #define pin_analogico_1 A15
-#define LEER_PRESION_1 analogRead(pin_analogico_1) // Leer el valor del pin analógico A15
+#define LEER_PRESION_1 analogRead(pin_analogico_1) // Leer el valor del pin analógico A15 // nivel
 #define PRESION_MINIMA 0
 #define CUENTAS_ADC 1024 // caracteristicas del ADC de la placa utilizada
 #define TENSION_ADC 5 // tension maxima del ADC
@@ -68,6 +68,9 @@ extern "C" {
 #define PIN_SPI_MOSI  (51)
 #define PIN_SPI_MISO  (50)
 #define PIN_SPI_SCK   (52)
+
+//! definiciones del nivel
+#define VALOR_COMPRESOR (1800) // valor en segundos cada cuanto se enciende el compresor
 
 #ifdef __cplusplus
 }
