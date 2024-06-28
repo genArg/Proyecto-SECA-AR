@@ -10,8 +10,29 @@
 extern "C" {
 #endif
 
-//! definiciones del codigo de grafica
-#define PANTALLA UTFTGLUE myGLCD(0, A2, A1, A3, A4);  // Asegúrate de usar el controlador y pines correctos para tu pantalla
+//! definiciones del codigo de grafica y touch
+#define INGRESA_PARAMETRO ;  //funcion de la tecla ok
+#define MUESTRA_PARAMETRO ;
+#define CAMBIA_MEDIDOR ;  // funcion al presionar los botones
+#define CAMBIA_PARAMETRO ;
+
+#define N_TOTAL (6)
+#define DECIMALES (0)
+
+#define MINPRESSURE 200
+#define MAXPRESSURE 1000
+
+// Definición de colores en formato RGB565
+#define BLACK 0x0000
+#define BLUE 0x001F
+#define RED 0xF800
+#define GREEN 0x07E0
+#define CYAN 0x07FF
+#define MAGENTA 0xF81F
+#define YELLOW 0xFFE0
+#define WHITE 0xFFFF
+
+
 
 //! definiciones del codigo de caudal
 #define pin_entrada 51 //!> bsp
@@ -21,6 +42,9 @@ extern "C" {
 
 //! definiciones del codigo de tiempo
 #define RTC false
+#define DIA 28
+#define MES 6
+#define YEAR 2024
 
 //! definiciones del codigo del manometros
 #define NUMB_PRESS 5
