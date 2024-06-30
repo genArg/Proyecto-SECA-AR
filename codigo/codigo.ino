@@ -49,8 +49,8 @@ static manometro_t manometro_1;
 static caudalimetro_t caudalimetro_1;
 static caudalimetro_t caudalimetro_2;
 static reloj_t reloj_1;
-uint8_t happy = 0;  //para el led feliz
-uint8_t aux_refresh = 0; // para tener un frame por segundo
+uint8_t happy = 0;        //para el led feliz
+uint8_t aux_refresh = 0;  // para tener un frame por segundo
 uint16_t contador_compresor = 1;
 uint8_t bit_compresor = 0;
 uint8_t i_dif = 0;  // cantidad de niveles dinamicos sobre cantidad de valores estaticos
@@ -58,6 +58,13 @@ uint16_t contador_10s = 1;
 uint8_t bit_10s = 0;
 uint16_t contador_1m = 1;
 uint8_t bit_1m = 0;
+uint8_t bit_hora = 1;  // para actualizar los datos de la pantalla
+uint8_t bit_caudal = 0;
+uint8_t bit_presion = 0; //!> bit para actualizar el dato en pantalla
+uint8_t bit_nivel_dinamico = 0;
+uint8_t bit_nivel_estatico = 0;
+uint8_t bit_caudal_especifico = 0;
+uint8_t bit_cambio = 0;
 float caudal_especifico = 0;
 float aux_float = 0;
 float aux_float_2 = 0;
@@ -113,6 +120,7 @@ void loop() {
         bit_compresor = 0;
         bit_10s = 0;
         contador_10s = 1;
+        bit_nivel_dinamico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
       }
     }
@@ -127,6 +135,7 @@ void loop() {
         bit_compresor = 0;
         bit_10s = 0;
         contador_10s = 1;
+        bit_nivel_estatico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
       }
     }
@@ -138,6 +147,7 @@ void loop() {
     }
     bit_1m = 0;
     contador_1m = 1;
+    bit_presion = 1;
   }
 
   // realiza los calculos del caudal especifico
@@ -145,16 +155,14 @@ void loop() {
 
   //guarda en sd
 
-  // muestra los valores en pantalla
-
 
   // Pantalla
   if (pant) {
     Tactil_2();
-    RefrescarPantalla_2();
+    RefrescarPantalla_2();  // muestra los valores en pantalla
   } else {
     if (happy ^ aux_refresh) {
-      RefrescarPantalla_1();
+      RefrescarPantalla_1();  // muestra los valores en pantalla
       aux_refresh = (aux_refresh) ? 0 : 1;
     }
 
@@ -188,6 +196,7 @@ void FnCallback() {
   contador_1m = (contador_1m + 1) % 61;
   if (contador_1m == 0) {
     bit_1m = 1;
+    bit_hora = 1;
   }
 
 
@@ -212,20 +221,36 @@ void CalcularQEspecifico() {
     }
 
     caudal_especifico = (aux_float) / (aux_float_2);  // calcula el caudal especifico
+    bit_caudal_especifico = 1;
   }
 }
 
 //Refresca el valr de la pantalla 1
 void RefrescarPantalla_1() {
-  MostrarValorPantalla(reloj_1->segundo, 0);            //hora
-  MostrarValorPantalla(manometro_1->presion_media, 1);  //presion
-  MostrarValorPantalla(aux_float, 2);                   //caudal
-  MostrarValorPantalla(nivel_alto->presion_media, 3);   //nivel estatico
-  MostrarValorPantalla(nivel_bajo->presion_media, 4);   //nivel dinamico
+  if (bit_hora || bit_cambio) {
+    MostrarValorPantalla(reloj_1->minuto, 0);  //hora
+    bit_hora = 0;
+  }
+  if (bit_presion || bit_cambio) {
+    MostrarValorPantalla(manometro_1->presion_media, 1);  //presion
+    bit_presion = 0;
+  }
+  if (bit_caudal || bit_cambio) {
+    MostrarValorPantalla(aux_float, 2);  //caudal
+    bit_caudal = 0;
+  }
+  if (bit_nivel_estatico || bit_cambio) {
+    MostrarValorPantalla(nivel_alto->presion_media, 3);  //nivel estatico
+    bit_nivel_estatico = 0;
+  }
+  if (bit_nivel_dinamico || bit_cambio) {
+    MostrarValorPantalla(nivel_bajo->presion_media, 4);  //nivel dinamico
+    bit_nivel_dinamico = 0;
+  }
+  bit_cambio = 0;
 }
 //Refresca el valr de la pantalla 2
-void RefrescarPantalla_2(){
-
+void RefrescarPantalla_2() {
 }
 
 
@@ -279,7 +304,7 @@ void Pantalla_1() {
     } else {
       tam = 2;
     }
-    btn_matrix[i].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 10, btn_height - 10, CYAN, CYAN, BLACK, matrix_labels[i], tam);
+    btn_matrix[i].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, BLACK, CYAN, BLACK, matrix_labels[i], tam);
     btn_matrix[i].drawButton(false);
   }
 }
@@ -293,7 +318,7 @@ void Pantalla_2() {
     int col = i % 3;
     int x = col * btn_width;
     int y = row * btn_height;
-    btn_digits[i].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 10, btn_height - 10, CYAN, CYAN, BLACK, labels[i], 2);
+    btn_digits[i].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, BLACK, CYAN, BLACK, labels[i], 2);
     btn_digits[i].drawButton(false);
   }
 
@@ -303,7 +328,7 @@ void Pantalla_2() {
   for (int i = 0; i < 3; i++) {
     int x = tft.width() / 2 + right_btn_width / 2;
     int y = i * right_btn_height;
-    right_btns[i].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 10, right_btn_height - 10, CYAN, CYAN, BLACK, right_labels[i], 2);
+    right_btns[i].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, right_labels[i], 2);
     right_btns[i].drawButton(false);
   }
 }
@@ -351,7 +376,7 @@ void Tactil_2() {
 
 
 void SeleccionNumerica(int i) {
-  if (i == 9) {
+  if (i == 9) { // boton back
     if (num_aux) {
       num_aux = 0;
       MostrarValorTeclado(num_aux);
@@ -359,11 +384,12 @@ void SeleccionNumerica(int i) {
       tft.fillScreen(WHITE);
       Pantalla_1();
       pant = 0;
+      bit_cambio = 1;
     }
-  } else if (i == 10) {
+  } else if (i == 10) { // boton "0"
     num_aux = num_aux * 10;
     MostrarValorTeclado(num_aux);
-  } else if (i == 11) {
+  } else if (i == 11) { // boton ok
     INGRESA_PARAMETRO;
     MUESTRA_PARAMETRO;
   } else {
@@ -427,7 +453,7 @@ void MostrarValorPantalla(int valor, int parametro) {
   int btn_height = tft.height() / 5;
   int x = aux * btn_width;
   int y = aux_1 * btn_height;
-  btn_matrix[aux_2].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 10, btn_height - 10, CYAN, CYAN, BLACK, buffer, 2);
+  btn_matrix[aux_2].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
   btn_matrix[aux_2].drawButton(false);
 }
 
@@ -442,6 +468,6 @@ void MostrarValorTeclado(int valor) {
   int right_btn_height = tft.height() / 3;
   int x = tft.width() / 2 + right_btn_width / 2;
   int y = 2 * right_btn_height;
-  right_btns[2].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 10, right_btn_height - 10, CYAN, CYAN, BLACK, buffer, 2);
+  right_btns[2].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
   right_btns[2].drawButton(false);
 }
