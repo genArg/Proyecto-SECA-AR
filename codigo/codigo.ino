@@ -8,8 +8,8 @@ MCUFRIEND_kbv tft;
 #include "tiempo.h"
 #include "presion.h"
 
+//--------------------------------------------------------------------------------------------------------------------
 // Pantalla
-
 // Calibración de la pantalla táctil para landscape
 const int XP = 8, XM = A2, YP = A3, YM = 9;  // Pines del touch panel
 //portrait
@@ -20,8 +20,8 @@ const int TS_LEFT = 70, TS_RT = 893, TS_TOP = 918, TS_BOT = 10;
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 
 // Botones para la matriz de 5x2 de la pantalla_1
-Adafruit_GFX_Button btn_matrix[10];  // Botones 5 filas x 2 columnas
-const char* matrix_labels[10] = { "Hora", "Config", "Presion", "x", "Caudal", "x", "Nivel Estatico", "x", "Nivel Dinamico", "x" };
+Adafruit_GFX_Button btn_matrix[12];  // Botones 5 filas x 2 columnas
+const char* matrix_labels[12] = { "Hora", "Config", "Presion", "x", "Caudal", "x", "Nivel Estatico", "x", "Nivel Dinamico", "x", "Q Especifico", "x" };
 
 
 // Botones para la pantalla_2
@@ -30,8 +30,8 @@ Adafruit_GFX_Button btn_digits[12];  // Botones 0-9, OK, y BACK
 const char* labels[12] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "BK", "0", "OK" };
 
 // Botones para la mitad derecha
-Adafruit_GFX_Button right_btns[3];
-const char* right_labels[3] = { "Caudalimetro", "Parametro", "Valor" };
+Adafruit_GFX_Button right_btns[4];
+const char* right_labels[4] = { "Q meter", "Parametro", "Valor", "N_valor" };
 
 int pixel_x, pixel_y;  // Variables globales para almacenar las coordenadas del toque
 int pant;              // para intercambiar entre pantalla
@@ -39,7 +39,7 @@ int num_aux;           //usado para el teclado numerico
 char buffer[20];       // Buffer para almacenar la cadena
 
 //
-
+//--------------------------------------------------------------------------------------------------------------------
 caudalimetro_t caudalimetro;  // crea un caudalimetro
 char mensaje[] = "mensaje";
 char letra;
@@ -49,18 +49,20 @@ static manometro_t manometro_1;
 static caudalimetro_t caudalimetro_1;
 static caudalimetro_t caudalimetro_2;
 static reloj_t reloj_1;
-uint8_t happy = 0;        //para el led feliz
 uint8_t aux_refresh = 0;  // para tener un frame por segundo
 uint16_t contador_compresor = 1;
+uint16_t contador_200ms = 1;
+uint16_t contador_1s = 1;
+uint16_t contador_10s = 1;
 uint8_t bit_compresor = 0;
 uint8_t i_dif = 0;  // cantidad de niveles dinamicos sobre cantidad de valores estaticos
-uint16_t contador_10s = 1;
-uint8_t bit_10s = 0;
+uint16_t timer_compresor = 1;
+uint8_t bit_segundos_compresor = 0;
 uint16_t contador_1m = 1;
 uint8_t bit_1m = 0;
 uint8_t bit_hora = 1;  // para actualizar los datos de la pantalla
 uint8_t bit_caudal = 0;
-uint8_t bit_presion = 0; //!> bit para actualizar el dato en pantalla
+uint8_t bit_presion = 0;  //!> bit para actualizar el dato en pantalla
 uint8_t bit_nivel_dinamico = 0;
 uint8_t bit_nivel_estatico = 0;
 uint8_t bit_caudal_especifico = 0;
@@ -68,10 +70,65 @@ uint8_t bit_cambio = 0;
 float caudal_especifico = 0;
 float aux_float = 0;
 float aux_float_2 = 0;
+uint8_t bit_happy_led = 0;
 
+//--------------------------------------------------------------------------------------------------------------------
+// para las entradas de interrupciones y demas
+int led_estado = 1;
+int happy_led_estado = 1;
+int a_pulse, a_c1, a_c2;
+int b_pulse, b_c1, b_c2;
+int contador_int_pulse = 0;
+int contador_int_c1 = 0;
+int contador_int_c2 = 0;
+int contador_happy_led = 0;
+uint8_t pin_estado_pulse, pin_estado_c1, pin_estado_c2, pin_auxiliar;
+
+//--------------------------------------------------------------------------------------------------------------------
 uint16_t valor_aux;  // varibale de pruebas
+int contador = 100;
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
+
+  Serial.begin(9600);
+  Serial.println("OK");
+
+  //--------------------------------------------------------------------------------------------------------------------
+  Timer1.initialize(TIME_BASE);        // Inicializa el temporizador a 1 segundo (100000 µs)
+  Timer1.attachInterrupt(FnCallback);  // Adjunta la función de callback
+
+  //--------------------------------------------------------------------------------------------------------------------
+  // Configurar el pin 13 como salida
+  pinMode(LED_BUILTIN, OUTPUT);
+  // Configurar el pin PIN_READY como entrada
+  pinMode(PIN_READY, INPUT_PULLUP);
+  // Configurar el pin PIN_HAPPY_LED como salida
+  pinMode(PIN_HAPPY_LED, OUTPUT);
+  // Configurar el pines de interrupcion como entreadas
+  pinMode(INTERRUPCION_PULSE, INPUT);  // pulsador -> forzar medicion
+  pinMode(INTERRUPCION_C1, INPUT);     // caudalimetro 1
+  pinMode(INTERRUPCION_C2, INPUT);     // caudalimetro 2
+
+  // inicia los estados de los pines de interrupcion
+  pin_estado_pulse = digitalRead(INTERRUPCION_PULSE);
+  pin_estado_c1 = digitalRead(INTERRUPCION_C1);
+  pin_estado_c2 = digitalRead(INTERRUPCION_C2);
+
+  // Habilitar la interrupción en el pin 21
+  // attachInterrupt(digitalPinToInterrupt(pin), ISR, mode)
+  // mode puede ser: LOW, CHANGE, RISING, FALLING, HIGH
+  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_PULSE), ISR_Pin, RISING);
+  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C1), ISR_Pin, RISING);
+  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C2), ISR_Pin, RISING);
+  a_pulse = 1;
+  a_c1 = 1;
+  a_c2 = 1;
+
+  b_pulse = 1;
+  b_c1 = 1;
+  b_c2 = 1;
+  //--------------------------------------------------------------------------------------------------------------------
   // pantalla
   uint16_t ID = tft.readID();     // Lee el ID de la pantalla TFT
   if (ID == 0xD3D3) ID = 0x9486;  // Ajuste para pantallas de solo escritura
@@ -81,9 +138,7 @@ void setup() {
   pant = 0;
   Pantalla_1();
 
-
-  //Serial.begin(9600);
-  //Serial.println("OK");
+  //--------------------------------------------------------------------------------------------------------------------
 
   nivel_alto = InicializarManometro();
   nivel_bajo = InicializarManometro();
@@ -92,34 +147,24 @@ void setup() {
   caudalimetro_2 = InicializarCaudal();
   reloj_1 = InicializarReloj();
 
-
-  // configuracion de los pines digitales
-  pinMode(PIN_READY, INPUT_PULLUP);
-  pinMode(PIN_FORZAR_MEDICION, INPUT_PULLUP);
-  pinMode(PIN_OUT_COMPRESOR, OUTPUT);
-  pinMode(PIN_HAPPY, OUTPUT);
-
   //apaga el compresor
   digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
-
-  //analogRead(pin_analogico_0);
-  Timer1.initialize(1000000);          // Inicializa el temporizador a 1 segundo (1000000 µs)
-  Timer1.attachInterrupt(FnCallback);  // Adjunta la función de callback
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void loop() {
 
   if (digitalRead(PIN_READY)) {
     if (bit_compresor) {
       digitalWrite(PIN_OUT_COMPRESOR, HIGH);  // enciende compresor
-      if (bit_10s) {                          //esperar que el 10 segundos para realizar la lectura
+      if (bit_segundos_compresor) {           //esperar que el 10 segundos para realizar la lectura
         for (int i = 0; i < 5; i++) {
           TomarValor(nivel_bajo, LEER_PRESION_1);  //almacenar valor de nivel bajo
         }
         i_dif++;  //aumenta el contador de evento
         bit_compresor = 0;
-        bit_10s = 0;
-        contador_10s = 1;
+        bit_segundos_compresor = 0;
+        timer_compresor = 1;
         bit_nivel_dinamico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
       }
@@ -127,19 +172,21 @@ void loop() {
   } else {
     if (bit_compresor || (i_dif > 3)) {       /*contador de evento > 3*/
       digitalWrite(PIN_OUT_COMPRESOR, HIGH);  // enciende compresor
-      if (bit_10s) {                          //esperar que el 10 segundos para realizar la lectura
+      if (bit_segundos_compresor) {           //esperar que el 10 segundos para realizar la lectura
         for (int i = 0; i < 5; i++) {
           TomarValor(nivel_alto, LEER_PRESION_1);  //almacenar valor de nivel alto
         }
         i_dif = 0;  //resetea el contador de evento
         bit_compresor = 0;
-        bit_10s = 0;
-        contador_10s = 1;
+        bit_segundos_compresor = 0;
+        timer_compresor = 1;
         bit_nivel_estatico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
       }
     }
   }
+
+  //--------------------------------------------------------------------------------------------------------------------
   // medir presion
   if (bit_1m) {
     for (int i = 0; i < 5; i++) {
@@ -150,61 +197,171 @@ void loop() {
     bit_presion = 1;
   }
 
+  //--------------------------------------------------------------------------------------------------------------------
   // realiza los calculos del caudal especifico
   CalcularQEspecifico();
 
+  //--------------------------------------------------------------------------------------------------------------------
   //guarda en sd
 
-
+  //--------------------------------------------------------------------------------------------------------------------
   // Pantalla
   if (pant) {
     Tactil_2();
     RefrescarPantalla_2();  // muestra los valores en pantalla
   } else {
-    if (happy ^ aux_refresh) {
+    if (contador_200ms) {
       RefrescarPantalla_1();  // muestra los valores en pantalla
-      aux_refresh = (aux_refresh) ? 0 : 1;
     }
 
     Tactil_1();
   }
 
-
-  digitalWrite(PIN_HAPPY, happy);
+  //--------------------------------------------------------------------------------------------------------------------
+  fn_aux();
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // funcion llama de interrupcion del temporizador
 void FnCallback() {
-  // para el led happy
-  happy = (happy) ? 0 : 1;
 
+  //--------------------------------------------------------------------------------------------------------------------
+  if (0 == (contador_200ms = (contador_200ms) ? 0 : 1)) {
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if (0 == (contador_1s = (contador_1s + 1) % TIME_1S)) {
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if (0 == (contador_10s = (contador_10s + 1) % TIME_10S)) {
+    bit_happy_led = 1;
+    // aumenta en 1 segundo el reloj interno
+    UnSegundoReloj(reloj_1);
+    bit_hora = 1;
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  contador_happy_led = contador_1s;
+
+  //--------------------------------------------------------------------------------------------------------------------
   // timer del compresor
-  contador_compresor = (contador_compresor + 1) % VALOR_COMPRESOR;
+  contador_compresor = (contador_compresor + 1) % TIME_VALOR_COMPRESOR;
   if (contador_compresor == 0) {
     bit_compresor = 1;
   }
 
+  //--------------------------------------------------------------------------------------------------------------------
   // timer para contar 10 seg despues de iniciar el compresor
   if (bit_compresor) {
-    contador_10s = (contador_10s + 1) % 11;
+    timer_compresor = (timer_compresor + 1) % TIME_10S;
   }
-  if (contador_10s == 0) {
-    bit_10s = 1;
+  if (timer_compresor == 0) {
+    bit_segundos_compresor = 1;
   }
 
+  //--------------------------------------------------------------------------------------------------------------------
   // timer para contar 1 min para tomar la presion
-  contador_1m = (contador_1m + 1) % 61;
+  contador_1m = (contador_1m + 1) % TIME_60S;
   if (contador_1m == 0) {
     bit_1m = 1;
-    bit_hora = 1;
   }
 
+  //--------------------------------------------------------------------------------------------------------------------
+  // timer para uso de interrpuciones
+  contador_int_pulse = (contador_int_pulse + 1) % TIME_INT_PULSE;
+  contador_int_c1 = (contador_int_c1 + 1) % TIME_INT_C1;
+  contador_int_c2 = (contador_int_c2 + 1) % TIME_INT_C2;
 
-  // aumenta en 1 segundo el reloj interno
-  UnSegundoReloj(reloj_1);
+  if (contador_int_pulse == 0) {
+    a_pulse = 1;
+  }
+  if (contador_int_c1 == 0) {
+    a_c1 = 1;
+  }
+  if (contador_int_c2 == 0) {
+    a_c2 = 1;
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void fn_aux() {
+  if ((a_pulse == 0) && (b_pulse == 1)) {
+    led_estado = (led_estado) ? 0 : 1;
+    digitalWrite(LED_BUILTIN, led_estado);
+    b_pulse = 0;
+    Serial.println("interrupcion 19");
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if ((a_c1 == 0) && (b_c1 == 1)) {
+    //digitalWrite(LED_BUILTIN, 1);
+    b_c1 = 0;
+    contador++;
+    Serial.println("interrupcion 20");
+    Serial.println(contador);
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if ((a_c2 == 0) && (b_c2 == 1)) {
+    //digitalWrite(LED_BUILTIN, 0);
+    b_c2 = 0;
+    contador--;
+    Serial.println("interrupcion 21");
+    Serial.println(contador);
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if (digitalRead(PIN_READY) && bit_happy_led) {
+    //------------------> condicion para que no se repita demasido rapid y codigo para leer las entradas analogicas
+    Serial.print("PRESION: ");
+    Serial.println(analogRead(PIN_PRESION));
+    Serial.print("NIVEL: ");
+    Serial.println(analogRead(PIN_NIVEL));
+
+    // codigo para el happy led
+    happy_led_estado = (happy_led_estado) ? 0 : 1;
+    digitalWrite(PIN_HAPPY_LED, happy_led_estado);
+    bit_happy_led = 0;
+  }
 }
 
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Definir la función de interrupción
+void ISR_Pin() {
+  if (pin_estado_pulse != (pin_auxiliar = digitalRead(INTERRUPCION_PULSE))) {
+    pin_estado_pulse = pin_auxiliar;
+    if (a_pulse && pin_estado_pulse) {
+      a_pulse = 0;
+      b_pulse = 1;
+      contador_int_pulse = 1;
+    }
+  }
+
+  if (pin_estado_c1 != (pin_auxiliar = digitalRead(INTERRUPCION_C1))) {
+    pin_estado_c1 = pin_auxiliar;
+    if (a_c1 && pin_estado_c1) {
+      a_c1 = 0;
+      b_c1 = 1;
+      contador_int_c1 = 1;
+    }
+  }
+
+  if (pin_estado_c2 != (pin_auxiliar = digitalRead(INTERRUPCION_C2))) {
+    pin_estado_c2 = pin_auxiliar;
+    if (a_c2 && pin_estado_c2) {
+      a_c2 = 0;
+      b_c2 = 1;
+      contador_int_c2 = 1;
+    }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Calcula el caudal especifico
 void CalcularQEspecifico() {
   if (nivel_alto->presion_media && nivel_bajo->presion_media && caudalimetro_1->caudal_promedio && caudalimetro_2->caudal_promedio) {
@@ -225,10 +382,11 @@ void CalcularQEspecifico() {
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Refresca el valr de la pantalla 1
 void RefrescarPantalla_1() {
   if (bit_hora || bit_cambio) {
-    MostrarValorPantalla(reloj_1->minuto, 0);  //hora
+    MostrarValorPantalla(reloj_1->segundo, 0);  //hora
     bit_hora = 0;
   }
   if (bit_presion || bit_cambio) {
@@ -247,13 +405,19 @@ void RefrescarPantalla_1() {
     MostrarValorPantalla(nivel_bajo->presion_media, 4);  //nivel dinamico
     bit_nivel_dinamico = 0;
   }
+  if (bit_caudal_especifico || bit_cambio) {
+    MostrarValorPantalla(caudal_especifico, 5);  //caudal especifico
+    bit_caudal_especifico = 0;
+  }
   bit_cambio = 0;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Refresca el valr de la pantalla 2
 void RefrescarPantalla_2() {
 }
 
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Verifica que la señal sea true
 void Verificar(caudalimetro_t cauda) {
   cauda->entrada = LEER_ENTRADA;
@@ -268,9 +432,9 @@ void Verificar(caudalimetro_t cauda) {
 }
 
 
-
-
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Función para obtener las coordenadas del toque
 bool Touch_getXY(void) {
   TSPoint p = ts.getPoint();  // Obtiene un punto de la pantalla táctil
@@ -289,12 +453,14 @@ bool Touch_getXY(void) {
   return pressed;
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void Pantalla_1() {
   // Inicializa los botones de la matriz 5x2
   int btn_width = tft.width() / 2;
-  int btn_height = tft.height() / 5;
+  int btn_height = tft.height() / 6;
   int tam = 1;  // para modificar el tamaño
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 12; i++) {
     int row = i / 2;
     int col = i % 2;
     int x = col * btn_width;
@@ -309,6 +475,7 @@ void Pantalla_1() {
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void Pantalla_2() {
   // Inicializa los botones del teclado numérico
   int btn_width = tft.width() / 6;
@@ -324,8 +491,8 @@ void Pantalla_2() {
 
   // Inicializa los botones de la mitad derecha
   int right_btn_width = tft.width() / 2;
-  int right_btn_height = tft.height() / 3;
-  for (int i = 0; i < 3; i++) {
+  int right_btn_height = tft.height() / 4;
+  for (int i = 0; i < 4; i++) {
     int x = tft.width() / 2 + right_btn_width / 2;
     int y = i * right_btn_height;
     right_btns[i].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, right_labels[i], 2);
@@ -333,6 +500,8 @@ void Pantalla_2() {
   }
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void Tactil_1() {
   bool down = Touch_getXY();  // Comprueba si la pantalla está siendo tocada
 
@@ -348,6 +517,7 @@ void Tactil_1() {
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void Tactil_2() {
   bool down = Touch_getXY();  // Comprueba si la pantalla está siendo tocada
 
@@ -363,7 +533,7 @@ void Tactil_2() {
   }
 
   // Procesa los botones de la mitad derecha
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 2; i++) {
     right_btns[i].press(down && right_btns[i].contains(pixel_x, pixel_y));
     if (right_btns[i].justReleased())
       right_btns[i].drawButton();
@@ -374,9 +544,9 @@ void Tactil_2() {
   }
 }
 
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SeleccionNumerica(int i) {
-  if (i == 9) { // boton back
+  if (i == 9) {  // boton back
     if (num_aux) {
       num_aux = 0;
       MostrarValorTeclado(num_aux);
@@ -386,10 +556,10 @@ void SeleccionNumerica(int i) {
       pant = 0;
       bit_cambio = 1;
     }
-  } else if (i == 10) { // boton "0"
+  } else if (i == 10) {  // boton "0"
     num_aux = num_aux * 10;
     MostrarValorTeclado(num_aux);
-  } else if (i == 11) { // boton ok
+  } else if (i == 11) {  // boton ok
     INGRESA_PARAMETRO;
     MUESTRA_PARAMETRO;
   } else {
@@ -399,6 +569,7 @@ void SeleccionNumerica(int i) {
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SeleccionParametro(int i) {
   switch (i) {
     case 0:
@@ -413,15 +584,16 @@ void SeleccionParametro(int i) {
       break;
   }
 }
-////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void MostrarValorPantalla(int valor, int parametro) {
   int aux, aux_1, aux_2;
   dtostrf(valor, N_TOTAL, DECIMALES, buffer);
   switch (parametro) {
     case 0:
-      aux = 0;
-      aux_1 = 0;
-      aux_2 = 0;
+      aux = 0;    // columna
+      aux_1 = 0;  // fila
+      aux_2 = 0;  // elemento
       break;
     case 1:
       aux = 1;
@@ -443,6 +615,11 @@ void MostrarValorPantalla(int valor, int parametro) {
       aux_1 = 4;
       aux_2 = 9;
       break;
+    case 5:
+      aux = 1;
+      aux_1 = 5;
+      aux_2 = 11;
+      break;
     default:
       aux = 0;
       aux_1 = 0;
@@ -450,24 +627,26 @@ void MostrarValorPantalla(int valor, int parametro) {
       break;
   }
   int btn_width = tft.width() / 2;
-  int btn_height = tft.height() / 5;
+  int btn_height = tft.height() / 6;
   int x = aux * btn_width;
   int y = aux_1 * btn_height;
   btn_matrix[aux_2].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
   btn_matrix[aux_2].drawButton(false);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void MostrarValorMedidor(int valor) {}
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void MostrarValorParametro(int valor) {}
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void MostrarValorTeclado(int valor) {
   dtostrf(num_aux, N_TOTAL, DECIMALES, buffer);
   int right_btn_width = tft.width() / 2;
-  int right_btn_height = tft.height() / 3;
+  int right_btn_height = tft.height() / 4;
   int x = tft.width() / 2 + right_btn_width / 2;
-  int y = 2 * right_btn_height;
-  right_btns[2].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
-  right_btns[2].drawButton(false);
+  int y = 3 * right_btn_height;
+  right_btns[3].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
+  right_btns[3].drawButton(false);
 }
