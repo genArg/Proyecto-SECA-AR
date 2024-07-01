@@ -204,7 +204,6 @@ uint16_t ValoresManometro(manometro_t man, uint16_t valor) {
       break;
   }  //*/
 
-  //Serial.println(auxiliar);
   return auxiliar;
 }
 

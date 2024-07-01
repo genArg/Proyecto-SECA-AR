@@ -34,14 +34,36 @@ const char* labels[12] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "BK", "0
 
 // Botones para la mitad derecha
 Adafruit_GFX_Button right_btns[4];
-const char* right_labels[4] = { "Q meter", "Parametro", "Valor", "N_valor" };
+const char* right_labels[4] = { "Gen", "Param Gen", "Valor", "N_valor" };
 
-int pixel_x, pixel_y;  // Variables globales para almacenar las coordenadas del toque
-int pant;              // para intercambiar entre pantalla
-int num_aux;           //usado para el teclado numerico
-char buffer[20];       // Buffer para almacenar la cadena
+// Variables globales para almacenar las coordenadas del toque
+uint16_t pixel_x, pixel_y;
+// para intercambiar entre pantalla
+uint16_t pant;
+//usado para el teclado numerico
+uint16_t valor_teclado;
+// Buffer para almacenar la cadena
+char buffer[20];
 
 //
+//--------------------------------------------------------------------------------------------------------------------
+//Para la modificacion de los parametros
+const char* medidores[6] = { "Gen", "Nivel", "Presion", "Caudal", "Tiempo", "Memoria" };
+
+const char* param_gen[1] = { "Param Gen" };
+const char* param_nivel[6] = { "Constante", "I min", "I MAX", "Ress", "Val min", "Val MAX" };
+const char* param_presion[6] = { "Constante", "I min", "I MAX", "Ress", "Pre min", "Pre MAX" };
+const char* param_caudal[3] = { "Constante", "In 1", "In 2" };
+const char* param_tiempo[5] = { "Minuto", "Hora", "Dia", "Mes", "Año" };
+const char* param_memoria[2] = { "Tiempo", "Codigo" };
+
+const char** parametros[6] = { param_gen, param_nivel, param_presion, param_caudal, param_tiempo, param_memoria };
+
+// Tamaños
+uint16_t Zise[6] = { 1, 6, 6, 3, 5, 2 };
+uint16_t indice_medidor = 0;
+uint16_t indice_parametro = 0;
+
 //--------------------------------------------------------------------------------------------------------------------
 caudalimetro_t caudalimetro;  // crea un caudalimetro
 char mensaje[] = "mensaje";
@@ -105,8 +127,11 @@ uint16_t valor_aux;  // varibale de pruebas
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
 
+#if DEBUG == TRUE
   Serial.begin(9600);
   Serial.println("OK");
+#endif
+
 
   //--------------------------------------------------------------------------------------------------------------------
   Timer1.initialize(TIME_BASE);        // Inicializa el temporizador a 1 segundo (100000 µs)
@@ -182,7 +207,10 @@ void loop() {
         bit_nivel_dinamico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
         bit_caudal_especifico = 1;
-        //Serial.println("READY_ON");
+
+#if DEBUG == TRUE
+        Serial.println("READY_ON");
+#endif
       }
     }
   } else {
@@ -201,7 +229,10 @@ void loop() {
         bit_nivel_estatico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
         bit_caudal_especifico = 1;
-        //Serial.println("READY_OFF");
+
+#if DEBUG == TRUE
+        Serial.println("READY_OFF");
+#endif
       }
     }
   }
@@ -313,14 +344,18 @@ void FnCallback() {
 void FnsIrsAuxiliares() {
   if ((a_pulse == 0) && (b_pulse == 1)) {
     b_pulse = 0;
+
+#if DEBUG == TRUE
     Serial.println("interrupcion 19");
+#endif
   }
 
   //--------------------------------------------------------------------------------------------------------------------
   if ((a_c1 == 0) && (b_c1 == 1)) {
-    //digitalWrite(LED_BUILTIN, 1);
     b_c1 = 0;
+#if DEBUG == TRUE
     Serial.println("interrupcion 20");
+#endif
     CalculoCaudal(caudalimetro_1);
     PromediarCaudal();
     if (pin_estado_c1) {
@@ -330,9 +365,10 @@ void FnsIrsAuxiliares() {
 
   //--------------------------------------------------------------------------------------------------------------------
   if ((a_c2 == 0) && (b_c2 == 1)) {
-    //digitalWrite(LED_BUILTIN, 0);
     b_c2 = 0;
+#if DEBUG == TRUE
     Serial.println("interrupcion 21");
+#endif
     CalculoCaudal(caudalimetro_2);
     PromediarCaudal();
     if (pin_estado_c2) {
@@ -392,6 +428,8 @@ void PromediarCaudal() {
     caudal_media = 0;
   }
   bit_caudal_especifico = 1;
+
+#if DEBUG == TRUE
   Serial.print("caudalimetro_1->caudal_promedio: ");
   Serial.println(caudalimetro_1->caudal_promedio);
   Serial.print("caudalimetro_2->caudal_promedio: ");
@@ -408,6 +446,7 @@ void PromediarCaudal() {
   Serial.println(nivel_bajo->presion_media);
   Serial.print("manometro_1->presion_media: ");
   Serial.println(manometro_1->presion_media);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -535,9 +574,11 @@ void Tactil_1() {
   if (btn_matrix[1].justPressed()) {
     btn_matrix[1].drawButton(true);
     tft.fillScreen(WHITE);
-    Pantalla_2();
+    indice_medidor = 0;
+    indice_parametro = 0;
     pant = 1;
-    num_aux = 0;
+    valor_teclado = 0;
+    Pantalla_2();
   }
 }
 
@@ -571,25 +612,27 @@ void Tactil_2() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SeleccionNumerica(int i) {
   if (i == 9) {  // boton back
-    if (num_aux) {
-      num_aux = 0;
-      MostrarValorTeclado(num_aux);
+    if (valor_teclado) {
+      valor_teclado = 0;
+      MostrarValorTeclado(valor_teclado);
     } else {
       tft.fillScreen(WHITE);
       Pantalla_1();
       pant = 0;
       bit_cambio = 1;
+      indice_medidor = 0;
+      indice_parametro = 0;
     }
   } else if (i == 10) {  // boton "0"
-    num_aux = num_aux * 10;
-    MostrarValorTeclado(num_aux);
+    valor_teclado = valor_teclado * 10;
+    MostrarValorTeclado(valor_teclado);
   } else if (i == 11) {  // boton ok
     INGRESA_PARAMETRO;
     MUESTRA_PARAMETRO;
   } else {
-    num_aux = num_aux * 10;
-    num_aux = num_aux + (i + 1);
-    MostrarValorTeclado(num_aux);
+    valor_teclado = valor_teclado * 10;
+    valor_teclado = valor_teclado + (i + 1);
+    MostrarValorTeclado(valor_teclado);
   }
 }
 
@@ -597,10 +640,21 @@ void SeleccionNumerica(int i) {
 void SeleccionParametro(int i) {
   switch (i) {
     case 0:
-      CAMBIA_MEDIDOR;
+      valor_teclado = 0;
+      indice_parametro = 0;
+      MostrarMedidor();
+      MostrarParametro();
+#if DEBUG == TRUE
+      Serial.println("presiono medidor");
+#endif
       break;
     case 1:
-      CAMBIA_PARAMETRO;
+      valor_teclado = 0;
+      MostrarParametro();
+      MostrarValor();
+#if DEBUG == TRUE
+      Serial.println("presiono cambiar parametro");
+#endif
       break;
 
     default:
@@ -610,6 +664,7 @@ void SeleccionParametro(int i) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// muestr los valores en la primera pantalla
 void MostrarValorPantalla(int valor, int parametro) {
   int aux, aux_1, aux_2;
   dtostrf(valor, N_TOTAL, DECIMALES, buffer);
@@ -659,14 +714,48 @@ void MostrarValorPantalla(int valor, int parametro) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void MostrarValorMedidor(int valor) {}
+// muestra los medidores en la segunda pantalla
+void MostrarMedidor() {
+  indice_medidor = (indice_medidor + 1) % (sizeof(Zise) / sizeof(Zise[0]));  //permite realizar un bucle entre los elementos
+  int right_btn_width = tft.width() / 2;
+  int right_btn_height = tft.height() / 4;
+  int x = tft.width() / 2 + right_btn_width / 2;
+  int y = 0 * right_btn_height;
+  right_btns[0].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, medidores[indice_medidor], 2);
+  right_btns[0].drawButton(false);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void MostrarValorParametro(int valor) {}
+void MostrarParametro() {
+
+  indice_parametro = (indice_parametro + 1) % Zise[indice_medidor];  //permite realizar un bucle entre los parametros
+  int right_btn_width = tft.width() / 2;
+  int right_btn_height = tft.height() / 4;
+  int x = tft.width() / 2 + right_btn_width / 2;
+  int y = 1 * right_btn_height;
+  right_btns[1].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, parametros[indice_medidor][indice_parametro], 2);
+  right_btns[1].drawButton(false);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void MostrarValorTeclado(int valor) {
-  dtostrf(num_aux, N_TOTAL, DECIMALES, buffer);
+// muestra el valor del parametro en la pantalla
+void MostrarValor() {
+  uint16_t valor = 999;
+  dtostrf(valor, N_TOTAL, DECIMALES, buffer);
+
+  int right_btn_width = tft.width() / 2;
+  int right_btn_height = tft.height() / 4;
+  int x = tft.width() / 2 + right_btn_width / 2;
+  int y = 2 * right_btn_height;
+  right_btns[2].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
+  right_btns[2].drawButton(false);
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// muestra el valor del teclado numerico en la pantalla
+void MostrarValorTeclado(uint16_t valor) {
+  dtostrf(valor, N_TOTAL, DECIMALES, buffer);
   int right_btn_width = tft.width() / 2;
   int right_btn_height = tft.height() / 4;
   int x = tft.width() / 2 + right_btn_width / 2;
