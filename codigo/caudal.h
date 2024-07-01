@@ -24,6 +24,9 @@ extern "C" {
   //! Realiza el calculo del caudal en litros por hora en funcion al tiempo
   void CalculoCaudal(caudalimetro_t cauda);
 
+  //! Realiza el calculo del caudal en litros por hora en funcion al tiempo sin añadir ningun elemento
+  void RecalcularCaudal(caudalimetro_t cauda, uint16_t valor);
+
   float ValoresCaudal(caudalimetro_t cauda, uint16_t valor);
 
 
@@ -37,6 +40,7 @@ extern "C" {
     uint16_t indice;
     float caudal_promedio;
     float caudal[NUMB_ELEMENTS];
+    uint8_t habilitacion;
   };
 
 
@@ -51,6 +55,7 @@ extern "C" {
       cauda->constante = 100;
       cauda->indice = 0;
       cauda->caudal_promedio = 0;
+      cauda->habilitacion = 1;
       for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
         cauda->caudal[i] = 0;
       }
@@ -109,6 +114,26 @@ extern "C" {
     }
   }
 
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+  // realiza caulculos del caudal sin garegar un valor
+  void RecalcularCaudal(caudalimetro_t cauda, uint16_t valor) {
+    for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
+      cauda->caudal[cauda->indice] = (cauda->constante * cauda->caudal[cauda->indice]) / valor;
+    }
+
+    // calculo del caudal medio
+    uint8_t cantidad = 0;
+    float sumatoria = 0;
+    for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
+      if (cauda->caudal[i] > CAUDAL_MINIMO) {
+        sumatoria += cauda->caudal[i];
+        cantidad++;
+      }
+    }
+    if (cantidad > 0) {
+      cauda->caudal_promedio = sumatoria / cantidad;
+    }
+  }
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus
 }

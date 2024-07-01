@@ -14,10 +14,6 @@ extern "C" {
 #define FALSE 0
 #define DEBUG TRUE
 
-//! definiciones del codigo de grafica y touch
-#define INGRESA_PARAMETRO ;  //funcion de la tecla ok
-#define MUESTRA_PARAMETRO ;
-
 #define N_TOTAL (7)
 #define DECIMALES (0)
 

@@ -54,7 +54,7 @@ const char* param_gen[1] = { "Param Gen" };
 const char* param_nivel[6] = { "Constante", "I min", "I MAX", "Ress", "Val min", "Val MAX" };
 const char* param_presion[6] = { "Constante", "I min", "I MAX", "Ress", "Pre min", "Pre MAX" };
 const char* param_caudal[3] = { "Constante", "In 1", "In 2" };
-const char* param_tiempo[5] = { "Minuto", "Hora", "Dia", "Mes", "Año" };
+const char* param_tiempo[5] = { "Minuto", "Hora", "Dia", "Mes", "Year" };
 const char* param_memoria[2] = { "Tiempo", "Codigo" };
 
 const char** parametros[6] = { param_gen, param_nivel, param_presion, param_caudal, param_tiempo, param_memoria };
@@ -418,11 +418,11 @@ void ISR_Pin() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Calcula promedio
 void PromediarCaudal() {
-  if (caudalimetro_1->caudal_promedio && caudalimetro_2->caudal_promedio) {
+  if ((caudalimetro_1->caudal_promedio && caudalimetro_1->habilitacion) && (caudalimetro_2->caudal_promedio && caudalimetro_2->habilitacion)) {
     caudal_media = (caudalimetro_1->caudal_promedio + caudalimetro_2->caudal_promedio) / 2;
-  } else if (caudalimetro_1->caudal_promedio) {
+  } else if ((caudalimetro_1->caudal_promedio && caudalimetro_1->habilitacion)) {
     caudal_media = caudalimetro_1->caudal_promedio;
-  } else if (caudalimetro_2->caudal_promedio) {
+  } else if ((caudalimetro_2->caudal_promedio && caudalimetro_2->habilitacion)) {
     caudal_media = caudalimetro_2->caudal_promedio;
   } else {
     caudal_media = 0;
@@ -579,6 +579,9 @@ void Tactil_1() {
     pant = 1;
     valor_teclado = 0;
     Pantalla_2();
+    MostrarMedidor();
+    MostrarParametro();
+    MostrarValor();
   }
 }
 
@@ -610,6 +613,7 @@ void Tactil_2() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// establece el numero de teclado presionado
 void SeleccionNumerica(int i) {
   if (i == 9) {  // boton back
     if (valor_teclado) {
@@ -627,8 +631,12 @@ void SeleccionNumerica(int i) {
     valor_teclado = valor_teclado * 10;
     MostrarValorTeclado(valor_teclado);
   } else if (i == 11) {  // boton ok
-    INGRESA_PARAMETRO;
-    MUESTRA_PARAMETRO;
+    GuardarParametro(valor_teclado);
+    MostrarMedidor();
+    MostrarParametro();
+    MostrarValor();
+    valor_teclado = 0;
+    MostrarValorTeclado(valor_teclado);
   } else {
     valor_teclado = valor_teclado * 10;
     valor_teclado = valor_teclado + (i + 1);
@@ -637,21 +645,27 @@ void SeleccionNumerica(int i) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// discrimina entre los dos botones presionados
 void SeleccionParametro(int i) {
   switch (i) {
     case 0:
+      indice_medidor = (indice_medidor + 1) % (sizeof(Zise) / sizeof(Zise[0]));  //permite realizar un bucle entre los elementos
       valor_teclado = 0;
       indice_parametro = 0;
       MostrarMedidor();
       MostrarParametro();
+      MostrarValor();
+      MostrarValorTeclado(valor_teclado);
 #if DEBUG == TRUE
       Serial.println("presiono medidor");
 #endif
       break;
     case 1:
+      indice_parametro = (indice_parametro + 1) % Zise[indice_medidor];  //permite realizar un bucle entre los parametros
       valor_teclado = 0;
       MostrarParametro();
       MostrarValor();
+      MostrarValorTeclado(valor_teclado);
 #if DEBUG == TRUE
       Serial.println("presiono cambiar parametro");
 #endif
@@ -664,7 +678,7 @@ void SeleccionParametro(int i) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// muestr los valores en la primera pantalla
+// muestra los valores en la primera pantalla
 void MostrarValorPantalla(int valor, int parametro) {
   int aux, aux_1, aux_2;
   dtostrf(valor, N_TOTAL, DECIMALES, buffer);
@@ -716,7 +730,7 @@ void MostrarValorPantalla(int valor, int parametro) {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // muestra los medidores en la segunda pantalla
 void MostrarMedidor() {
-  indice_medidor = (indice_medidor + 1) % (sizeof(Zise) / sizeof(Zise[0]));  //permite realizar un bucle entre los elementos
+
   int right_btn_width = tft.width() / 2;
   int right_btn_height = tft.height() / 4;
   int x = tft.width() / 2 + right_btn_width / 2;
@@ -726,9 +740,9 @@ void MostrarMedidor() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Muestra el parametro activo
 void MostrarParametro() {
 
-  indice_parametro = (indice_parametro + 1) % Zise[indice_medidor];  //permite realizar un bucle entre los parametros
   int right_btn_width = tft.width() / 2;
   int right_btn_height = tft.height() / 4;
   int x = tft.width() / 2 + right_btn_width / 2;
@@ -740,7 +754,8 @@ void MostrarParametro() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // muestra el valor del parametro en la pantalla
 void MostrarValor() {
-  uint16_t valor = 999;
+  float valor = 0;
+  valor = ObtenerParametro();
   dtostrf(valor, N_TOTAL, DECIMALES, buffer);
 
   int right_btn_width = tft.width() / 2;
@@ -762,4 +777,251 @@ void MostrarValorTeclado(uint16_t valor) {
   int y = 3 * right_btn_height;
   right_btns[3].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
   right_btns[3].drawButton(false);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// obtiene el valor de los parametros
+float ObtenerParametro() {
+
+  float auxiliar = 0;
+
+  switch (indice_medidor) {
+    case 0:  // General
+      auxiliar = 0;
+      break;
+    case 1:  // nivel
+      switch (indice_parametro) {
+        case 0:  // constante
+          auxiliar = nivel_alto->constante;
+          break;
+        case 1:  // corriente minima
+          auxiliar = nivel_alto->corriente_min;
+          break;
+        case 2:  // corriente maxima
+          auxiliar = nivel_alto->corriente_max;
+          break;
+        case 3:  // resistencia
+          auxiliar = nivel_alto->resistencia;
+          break;
+        case 4:  // valor Minimo
+          auxiliar = nivel_alto->presion_min;
+          break;
+        case 5:  // valor maximo
+          auxiliar = nivel_alto->presion_max;
+          break;
+        default:
+
+          break;
+      }
+      break;
+    case 2:  // presion
+      switch (indice_parametro) {
+        case 0:  // constante
+          auxiliar = manometro_1->constante;
+          break;
+        case 1:  // corriente minima
+          auxiliar = manometro_1->corriente_min;
+          break;
+        case 2:  // corriente maxima
+          auxiliar = manometro_1->corriente_max;
+          break;
+        case 3:  // resistencia
+          auxiliar = manometro_1->resistencia;
+          break;
+        case 4:  // presion minima
+          auxiliar = manometro_1->presion_min;
+          break;
+        case 5:  // presion maxima
+          auxiliar = manometro_1->presion_max;
+          break;
+        default:
+
+          break;
+      }
+      break;
+    case 3:  // caudal
+      switch (indice_parametro) {
+        case 0:  // constante
+          auxiliar = caudalimetro_1->constante;
+          break;
+        case 1:  // entrada 1
+          auxiliar = caudalimetro_1->habilitacion;
+          break;
+        case 2:  // entrada 2
+          auxiliar = caudalimetro_2->habilitacion;
+          break;
+        default:
+
+          break;
+      }
+      break;
+    case 4:  // tiempo
+      switch (indice_parametro) {
+        case 0:  // minuto
+          auxiliar = reloj_1->minuto;
+          break;
+        case 1:  // hora
+          auxiliar = reloj_1->hora;
+          break;
+        case 2:  // dia
+          auxiliar = reloj_1->dia;
+          break;
+        case 3:  // mes
+          auxiliar = reloj_1->mes;
+          break;
+        case 4:  // año
+          auxiliar = reloj_1->year;
+          break;
+        default:
+
+          break;
+      }
+      break;
+    case 5:  //memoria
+      switch (indice_parametro) {
+        case 0:  // tiempo
+
+          break;
+        case 1:  // codigo
+
+          break;
+        default:
+
+          break;
+      }
+      break;
+    default:
+
+      break;
+  }
+  return auxiliar;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Guarda el valor de los parametros
+void GuardarParametro(uint16_t valor) {
+  uint16_t auxiliar;
+
+  switch (indice_medidor) {
+    case 0:  // General
+      ;
+      break;
+    case 1:  // nivel
+      switch (indice_parametro) {
+        case 0:  // constante
+          nivel_alto->constante = valor;
+          nivel_bajo->constante = valor;
+          break;
+        case 1:  // corriente minima
+          nivel_alto->corriente_min = valor;
+          nivel_bajo->corriente_min = valor;
+          break;
+        case 2:  // corriente maxima
+          nivel_alto->corriente_max = valor;
+          nivel_bajo->corriente_max = valor;
+          break;
+        case 3:  // resistencia
+          nivel_alto->resistencia = valor;
+          nivel_bajo->resistencia = valor;
+          break;
+        case 4:  // valor Minimo
+          nivel_alto->presion_min = valor;
+          nivel_bajo->presion_min = valor;
+          break;
+        case 5:  // valor maximo
+          nivel_alto->presion_max = valor;
+          nivel_bajo->presion_max = valor;
+          break;
+        default:
+
+          break;
+      }
+      Recalcular(nivel_alto);
+      Recalcular(nivel_bajo);
+      break;
+    case 2:  // presion
+      switch (indice_parametro) {
+        case 0:  // constante
+          manometro_1->constante = valor;
+          break;
+        case 1:  // corriente minima
+          manometro_1->corriente_min = valor;
+          break;
+        case 2:  // corriente maxima
+          manometro_1->corriente_max = valor;
+          break;
+        case 3:  // resistencia
+          manometro_1->resistencia = valor;
+          break;
+        case 4:  // presion minima
+          manometro_1->presion_min = valor;
+          break;
+        case 5:  // presion maxima
+          manometro_1->presion_max = valor;
+          break;
+        default:
+
+          break;
+      }
+      Recalcular(manometro_1);
+      break;
+    case 3:  // caudal
+      switch (indice_parametro) {
+        case 0:  // constante
+          auxiliar = caudalimetro_1->constante;
+          caudalimetro_1->constante = valor;
+          caudalimetro_2->constante = valor;
+          RecalcularCaudal(caudalimetro_1, auxiliar);
+          RecalcularCaudal(caudalimetro_2, auxiliar);
+          break;
+        case 1:  // entrada 1
+          caudalimetro_1->habilitacion = valor;
+          break;
+        case 2:  // entrada 2
+          caudalimetro_2->habilitacion = valor;
+          break;
+        default:
+
+          break;
+      }
+      break;
+    case 4:  // tiempo
+      switch (indice_parametro) {
+        case 0:  // minuto
+          reloj_1->minuto = valor;
+          break;
+        case 1:  // hora
+          reloj_1->hora = valor;
+          break;
+        case 2:  // dia
+          reloj_1->dia = valor;
+          break;
+        case 3:  // mes
+          reloj_1->mes = valor;
+          break;
+        case 4:  // año
+          reloj_1->year = valor;
+          break;
+        default:
+
+          break;
+      }
+      break;
+    case 5:  //memoria
+      switch (indice_parametro) {
+        case 0:  // tiempo
+
+          break;
+        case 1:  // codigo
+
+          break;
+        default:
+
+          break;
+      }
+      break;
+    default:
+
+      break;
+  }
 }
