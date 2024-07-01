@@ -8,6 +8,9 @@ MCUFRIEND_kbv tft;
 #include "tiempo.h"
 #include "presion.h"
 
+
+#define PULSE_INT ((a_pulse == 0) && (b_pulse == 1))
+
 //--------------------------------------------------------------------------------------------------------------------
 // Pantalla
 // Calibración de la pantalla táctil para landscape
@@ -49,44 +52,55 @@ static manometro_t manometro_1;
 static caudalimetro_t caudalimetro_1;
 static caudalimetro_t caudalimetro_2;
 static reloj_t reloj_1;
-uint8_t aux_refresh = 0;  // para tener un frame por segundo
+// para tener un frame por segundo
+uint8_t aux_refresh = 0;
+// contador delta de tiempo entre mediciones
 uint16_t contador_compresor = 1;
 uint16_t contador_200ms = 1;
 uint16_t contador_1s = 1;
 uint16_t contador_10s = 1;
+// bit para iniciar el tiempo de espera hasta tomar la medicion
 uint8_t bit_compresor = 0;
-uint8_t i_dif = 0;  // cantidad de niveles dinamicos sobre cantidad de valores estaticos
+// cantidad de niveles dinamicos sobre cantidad de valores estaticos
+uint8_t i_dif = 0;
+//contador para esperar 10 segundos  antes de tomar medicion
 uint16_t timer_compresor = 1;
+// bit para iniciar la toma la mediciones
 uint8_t bit_segundos_compresor = 0;
 uint16_t contador_1m = 1;
 uint8_t bit_1m = 0;
-uint8_t bit_hora = 1;  // para actualizar los datos de la pantalla
+// para actualizar los datos de la pantalla
+uint8_t bit_hora = 1;
+// bit para actualizar el valor en pantalla
 uint8_t bit_caudal = 0;
-uint8_t bit_presion = 0;  //!> bit para actualizar el dato en pantalla
+//!> bit para actualizar el dato en pantalla
+uint8_t bit_presion = 0;
 uint8_t bit_nivel_dinamico = 0;
 uint8_t bit_nivel_estatico = 0;
 uint8_t bit_caudal_especifico = 0;
 uint8_t bit_cambio = 0;
 float caudal_especifico = 0;
-float aux_float = 0;
-float aux_float_2 = 0;
-uint8_t bit_happy_led = 0;
+float caudal_media = 0;
+float delta_altura = 0;
 
 //--------------------------------------------------------------------------------------------------------------------
 // para las entradas de interrupciones y demas
-int led_estado = 1;
+//usado en para le estado del led
 int happy_led_estado = 1;
+// bandera para tomar un tiempo entre interrupciones
 int a_pulse, a_c1, a_c2;
+// bandera para ejecutar la funciones de la interrupcion
 int b_pulse, b_c1, b_c2;
 int contador_int_pulse = 0;
 int contador_int_c1 = 0;
 int contador_int_c2 = 0;
 int contador_happy_led = 0;
+// estado del pulsador previo
 uint8_t pin_estado_pulse, pin_estado_c1, pin_estado_c2, pin_auxiliar;
+
 
 //--------------------------------------------------------------------------------------------------------------------
 uint16_t valor_aux;  // varibale de pruebas
-int contador = 100;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -154,34 +168,40 @@ void setup() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void loop() {
 
+  //--------------------------------------------------------------------------------------------------------------------
+  // medir nivel
   if (digitalRead(PIN_READY)) {
     if (bit_compresor) {
       digitalWrite(PIN_OUT_COMPRESOR, HIGH);  // enciende compresor
       if (bit_segundos_compresor) {           //esperar que el 10 segundos para realizar la lectura
-        for (int i = 0; i < 5; i++) {
-          TomarValor(nivel_bajo, LEER_PRESION_1);  //almacenar valor de nivel bajo
-        }
-        i_dif++;  //aumenta el contador de evento
+        TomarValor(nivel_bajo, PIN_NIVEL);    //almacenar valor de nivel bajo
+        i_dif++;                              //aumenta el contador de evento
         bit_compresor = 0;
         bit_segundos_compresor = 0;
         timer_compresor = 1;
         bit_nivel_dinamico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
+        bit_caudal_especifico = 1;
+        //Serial.println("READY_ON");
       }
     }
   } else {
-    if (bit_compresor || (i_dif > 3)) {       /*contador de evento > 3*/
+    if (i_dif > 3) {  //inicia de la toma de inmediato
+      bit_compresor = 1;
+      i_dif = 0;
+    }
+    if (bit_compresor) {                      /*contador de evento > 3*/
       digitalWrite(PIN_OUT_COMPRESOR, HIGH);  // enciende compresor
       if (bit_segundos_compresor) {           //esperar que el 10 segundos para realizar la lectura
-        for (int i = 0; i < 5; i++) {
-          TomarValor(nivel_alto, LEER_PRESION_1);  //almacenar valor de nivel alto
-        }
-        i_dif = 0;  //resetea el contador de evento
+        TomarValor(nivel_alto, PIN_NIVEL);    //almacenar valor de nivel alto
+        i_dif = 0;                            //resetea el contador de evento
         bit_compresor = 0;
         bit_segundos_compresor = 0;
         timer_compresor = 1;
         bit_nivel_estatico = 1;
         digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
+        bit_caudal_especifico = 1;
+        //Serial.println("READY_OFF");
       }
     }
   }
@@ -189,9 +209,7 @@ void loop() {
   //--------------------------------------------------------------------------------------------------------------------
   // medir presion
   if (bit_1m) {
-    for (int i = 0; i < 5; i++) {
-      TomarValor(manometro_1, LEER_PRESION_0);  //almacenar valor de nivel bajo
-    }
+    TomarValor(manometro_1, PIN_PRESION);  //almacenar valor de nivel bajo
     bit_1m = 0;
     contador_1m = 1;
     bit_presion = 1;
@@ -218,7 +236,10 @@ void loop() {
   }
 
   //--------------------------------------------------------------------------------------------------------------------
-  fn_aux();
+  FnsIrsAuxiliares();
+
+  //--------------------------------------------------------------------------------------------------------------------
+  digitalWrite(PIN_HAPPY_LED, happy_led_estado);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -236,7 +257,7 @@ void FnCallback() {
 
   //--------------------------------------------------------------------------------------------------------------------
   if (0 == (contador_10s = (contador_10s + 1) % TIME_10S)) {
-    bit_happy_led = 1;
+    happy_led_estado = (happy_led_estado) ? 0 : 1;
     // aumenta en 1 segundo el reloj interno
     UnSegundoReloj(reloj_1);
     bit_hora = 1;
@@ -247,7 +268,9 @@ void FnCallback() {
 
   //--------------------------------------------------------------------------------------------------------------------
   // timer del compresor
-  contador_compresor = (contador_compresor + 1) % TIME_VALOR_COMPRESOR;
+  if (bit_compresor == 0) {
+    contador_compresor = (contador_compresor + 1) % (100 * TIME_10S);  //TIME_VALOR_COMPRESOR debe ser 1 minuto;
+  }
   if (contador_compresor == 0) {
     bit_compresor = 1;
   }
@@ -263,9 +286,10 @@ void FnCallback() {
 
   //--------------------------------------------------------------------------------------------------------------------
   // timer para contar 1 min para tomar la presion
-  contador_1m = (contador_1m + 1) % TIME_60S;
+  contador_1m = (contador_1m + 1) % TIME_10S;
   if (contador_1m == 0) {
     bit_1m = 1;
+    bit_caudal_especifico = 1;
   }
 
   //--------------------------------------------------------------------------------------------------------------------
@@ -286,10 +310,8 @@ void FnCallback() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void fn_aux() {
+void FnsIrsAuxiliares() {
   if ((a_pulse == 0) && (b_pulse == 1)) {
-    led_estado = (led_estado) ? 0 : 1;
-    digitalWrite(LED_BUILTIN, led_estado);
     b_pulse = 0;
     Serial.println("interrupcion 19");
   }
@@ -298,32 +320,24 @@ void fn_aux() {
   if ((a_c1 == 0) && (b_c1 == 1)) {
     //digitalWrite(LED_BUILTIN, 1);
     b_c1 = 0;
-    contador++;
     Serial.println("interrupcion 20");
-    Serial.println(contador);
+    CalculoCaudal(caudalimetro_1);
+    PromediarCaudal();
+    if (pin_estado_c1) {
+      bit_caudal = 1;
+    }
   }
 
   //--------------------------------------------------------------------------------------------------------------------
   if ((a_c2 == 0) && (b_c2 == 1)) {
     //digitalWrite(LED_BUILTIN, 0);
     b_c2 = 0;
-    contador--;
     Serial.println("interrupcion 21");
-    Serial.println(contador);
-  }
-
-  //--------------------------------------------------------------------------------------------------------------------
-  if (digitalRead(PIN_READY) && bit_happy_led) {
-    //------------------> condicion para que no se repita demasido rapid y codigo para leer las entradas analogicas
-    Serial.print("PRESION: ");
-    Serial.println(analogRead(PIN_PRESION));
-    Serial.print("NIVEL: ");
-    Serial.println(analogRead(PIN_NIVEL));
-
-    // codigo para el happy led
-    happy_led_estado = (happy_led_estado) ? 0 : 1;
-    digitalWrite(PIN_HAPPY_LED, happy_led_estado);
-    bit_happy_led = 0;
+    CalculoCaudal(caudalimetro_2);
+    PromediarCaudal();
+    if (pin_estado_c2) {
+      bit_caudal = 1;
+    }
   }
 }
 
@@ -339,6 +353,7 @@ void ISR_Pin() {
       a_pulse = 0;
       b_pulse = 1;
       contador_int_pulse = 1;
+      bit_compresor = 1;
     }
   }
 
@@ -348,6 +363,7 @@ void ISR_Pin() {
       a_c1 = 0;
       b_c1 = 1;
       contador_int_c1 = 1;
+      CaudalGuardarTiempo(caudalimetro_1, TomarTiempo(reloj_1));
     }
   }
 
@@ -357,28 +373,51 @@ void ISR_Pin() {
       a_c2 = 0;
       b_c2 = 1;
       contador_int_c2 = 1;
+      CaudalGuardarTiempo(caudalimetro_2, TomarTiempo(reloj_1));
     }
   }
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Calcula promedio
+void PromediarCaudal() {
+  if (caudalimetro_1->caudal_promedio && caudalimetro_2->caudal_promedio) {
+    caudal_media = (caudalimetro_1->caudal_promedio + caudalimetro_2->caudal_promedio) / 2;
+  } else if (caudalimetro_1->caudal_promedio) {
+    caudal_media = caudalimetro_1->caudal_promedio;
+  } else if (caudalimetro_2->caudal_promedio) {
+    caudal_media = caudalimetro_2->caudal_promedio;
+  } else {
+    caudal_media = 0;
+  }
+  bit_caudal_especifico = 1;
+  Serial.print("caudalimetro_1->caudal_promedio: ");
+  Serial.println(caudalimetro_1->caudal_promedio);
+  Serial.print("caudalimetro_2->caudal_promedio: ");
+  Serial.println(caudalimetro_2->caudal_promedio);
+  Serial.print("caudal_media: ");
+  Serial.println(caudal_media);
+  Serial.print("delta_altura: ");
+  Serial.println(delta_altura);
+  Serial.print("caudal_especifico: ");
+  Serial.println(caudal_especifico);
+  Serial.print("nivel_alto->presion_media: ");
+  Serial.println(nivel_alto->presion_media);
+  Serial.print("nivel_bajo->presion_media: ");
+  Serial.println(nivel_bajo->presion_media);
+  Serial.print("manometro_1->presion_media: ");
+  Serial.println(manometro_1->presion_media);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Calcula el caudal especifico
 void CalcularQEspecifico() {
-  if (nivel_alto->presion_media && nivel_bajo->presion_media && caudalimetro_1->caudal_promedio && caudalimetro_2->caudal_promedio) {
-    if (caudalimetro_1->caudal_promedio && caudalimetro_2->caudal_promedio) {
-      aux_float = (caudalimetro_1->caudal_promedio + caudalimetro_2->caudal_promedio) / 2;
-    } else if (caudalimetro_1->caudal_promedio) {
-      aux_float = caudalimetro_1->caudal_promedio;
-    } else if (caudalimetro_2->caudal_promedio) {
-      aux_float = caudalimetro_2->caudal_promedio;
-    }
+  if (nivel_alto->presion_media && nivel_bajo->presion_media && caudal_media) {
 
-    if (nivel_alto->presion_media && nivel_bajo->presion_media) {
-      aux_float_2 = nivel_alto->presion_media - nivel_bajo->presion_media;
-    }
+    delta_altura = nivel_alto->presion_media - nivel_bajo->presion_media;
 
-    caudal_especifico = (aux_float) / (aux_float_2);  // calcula el caudal especifico
-    bit_caudal_especifico = 1;
+    caudal_especifico = (caudal_media) / (delta_altura);  // calcula el caudal especifico
   }
 }
 
@@ -394,7 +433,7 @@ void RefrescarPantalla_1() {
     bit_presion = 0;
   }
   if (bit_caudal || bit_cambio) {
-    MostrarValorPantalla(aux_float, 2);  //caudal
+    MostrarValorPantalla(caudal_media, 2);  //caudal
     bit_caudal = 0;
   }
   if (bit_nivel_estatico || bit_cambio) {
@@ -416,21 +455,6 @@ void RefrescarPantalla_1() {
 //Refresca el valr de la pantalla 2
 void RefrescarPantalla_2() {
 }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Verifica que la señal sea true
-void Verificar(caudalimetro_t cauda) {
-  cauda->entrada = LEER_ENTRADA;
-  if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada == (true ^ cauda->logica))) {
-    cauda->tiempo_prev = cauda->tiempo;
-    cauda->tiempo = TomarTiempo(reloj_1);
-    cauda->entrada_prev = cauda->entrada;
-  }
-  if ((cauda->entrada != cauda->entrada_prev) && (cauda->entrada != (true ^ cauda->logica))) {
-    cauda->entrada_prev = cauda->entrada;
-  }
-}
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

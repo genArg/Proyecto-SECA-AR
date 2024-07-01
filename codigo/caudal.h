@@ -13,7 +13,7 @@ extern "C" {
   typedef struct caudalimetro_s* caudalimetro_t;
 
   //! verifica señal del caudalimetro
-  //void Verificar(caudalimetro_t cauda);
+  void CaudalGuardarTiempo(caudalimetro_t cauda, uint32_t tiempo);
 
   //! Inicializa los valores del caudalimetro
   caudalimetro_t InicializarCaudal();
@@ -24,43 +24,43 @@ extern "C" {
   //! Realiza el calculo del caudal en litros por hora en funcion al tiempo
   void CalculoCaudal(caudalimetro_t cauda);
 
-  uint16_t ValoresCaudal(caudalimetro_t cauda, uint16_t valor);
+  float ValoresCaudal(caudalimetro_t cauda, uint16_t valor);
 
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Estructra
   struct caudalimetro_s {
-    bool entrada;
-    bool entrada_prev;
     uint32_t tiempo;
     uint32_t tiempo_prev;
     uint16_t constante;
     uint16_t indice;
-    uint16_t caudal_promedio;
-    uint16_t caudal[NUMB_ELEMENTS];
-    bool logica;
+    float caudal_promedio;
+    float caudal[NUMB_ELEMENTS];
   };
 
-  
+
   // Inicia los valores del caudalimetro
   caudalimetro_t InicializarCaudal() {
-    static struct caudalimetro_s cauda[1];
-    memset(cauda, 0, sizeof(cauda));
+    caudalimetro_t cauda = (caudalimetro_t)malloc(sizeof(struct caudalimetro_s));
+
     if (cauda) {
-      cauda->entrada = false;
-      cauda->entrada_prev = false;
+      memset(cauda, 0, sizeof(cauda));
       cauda->tiempo = 0;
       cauda->tiempo_prev = 0;
       cauda->constante = 100;
       cauda->indice = 0;
       cauda->caudal_promedio = 0;
-      cauda->logica = false;
       for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
         cauda->caudal[i] = 0;
       }
     }
-    return cauda;
+    return &cauda[0];
+  }
+
+  void CaudalGuardarTiempo(caudalimetro_t cauda, uint32_t tiempo) {
+    cauda->tiempo_prev = cauda->tiempo;
+    cauda->tiempo = tiempo;
   }
 
   void ParametrizarCaudalimetro(caudalimetro_t cauda, uint16_t constante) {
@@ -71,9 +71,9 @@ extern "C" {
     }
   }
 
-  uint16_t ValoresCaudal(caudalimetro_t cauda, uint16_t valor) {
+  float ValoresCaudal(caudalimetro_t cauda, uint16_t valor) {
 
-    uint16_t auxiliar;
+    float auxiliar;
     //*
     switch (valor) {
       case 1:
@@ -91,13 +91,13 @@ extern "C" {
 
   // realiza caulculos del caudal
   void CalculoCaudal(caudalimetro_t cauda) {
-    uint16_t delta_tiempo = cauda->tiempo - cauda->tiempo_prev;
-    delta_tiempo = delta_tiempo / 3600;  // tiempo en hora
+    float delta_tiempo = cauda->tiempo - cauda->tiempo_prev;
+    delta_tiempo = delta_tiempo / SEGUNDO_POR_HORA;  // tiempo en hora
     cauda->caudal[cauda->indice] = cauda->constante / delta_tiempo;
     cauda->indice = (cauda->indice + 1) % NUMB_ELEMENTS;
     // calculo del caudal medio
     uint8_t cantidad = 0;
-    uint16_t sumatoria = 0;
+    float sumatoria = 0;
     for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
       if (cauda->caudal[i] > CAUDAL_MINIMO) {
         sumatoria += cauda->caudal[i];

@@ -43,9 +43,11 @@ extern "C" {
 
   // Inicia los valores del reloj
   reloj_t InicializarReloj() {
-    static struct reloj_s reloj[1];
-    memset(reloj, 0, sizeof(reloj));
+    
+    reloj_t reloj = (reloj_t)malloc(sizeof(struct reloj_s));
+
     if (reloj) {
+      memset(reloj, 0, sizeof(reloj));
       reloj->segundo = 0;
       reloj->minuto = 0;
       reloj->hora = 0;
