@@ -26,6 +26,9 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 Adafruit_GFX_Button btn_matrix[12];  // Botones 5 filas x 2 columnas
 const char* matrix_labels[12] = { "Hora", "Config", "Presion", "x", "Caudal", "x", "Nivel Estatico", "x", "Nivel Dinamico", "x", "Q Especifico", "x" };
 
+const char* matrix_mediciones[5] = { " Presion ", " Caudal ", "Niv Estatico ", "Niv Dinamico ", " Q Especifico " };
+const char* matrix_unidades[5] = { "[Pa] ", "[l/h] ", "[m]", "[m] ", "[l/(m.h)]" };
+
 
 // Botones para la pantalla_2
 // Botones para el teclado numérico
@@ -34,7 +37,7 @@ const char* labels[12] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "BK", "0
 
 // Botones para la mitad derecha
 Adafruit_GFX_Button right_btns[4];
-const char* right_labels[4] = { "Gen", "Param Gen", "Valor", "N_valor" };
+const char* right_labels[4] = { "Gen", "Color", "Valor", "N_valor" };
 
 // Variables globales para almacenar las coordenadas del toque
 uint16_t pixel_x, pixel_y;
@@ -50,7 +53,7 @@ char buffer[20];
 //Para la modificacion de los parametros
 const char* medidores[6] = { "Gen", "Nivel", "Presion", "Caudal", "Tiempo", "Memoria" };
 
-const char* param_gen[1] = { "Param Gen" };
+const char* param_gen[1] = { "Color" };
 const char* param_nivel[6] = { "Constante", "I min", "I MAX", "Ress", "Val min", "Val MAX" };
 const char* param_presion[6] = { "Constante", "I min", "I MAX", "Ress", "Pre min", "Pre MAX" };
 const char* param_caudal[3] = { "Constante", "In 1", "In 2" };
@@ -122,6 +125,7 @@ uint8_t pin_estado_pulse, pin_estado_c1, pin_estado_c2, pin_auxiliar;
 
 
 //--------------------------------------------------------------------------------------------------------------------
+uint8_t color_pantalla = 0; // cambia la pantalla entre ocuro y claro
 uint16_t valor_aux;  // varibale de pruebas
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -522,19 +526,22 @@ void Pantalla_1() {
   // Inicializa los botones de la matriz 5x2
   int btn_width = tft.width() / 2;
   int btn_height = tft.height() / 6;
-  int tam = 1;  // para modificar el tamaño
-  for (int i = 0; i < 12; i++) {
-    int row = i / 2;
-    int col = i % 2;
-    int x = col * btn_width;
-    int y = row * btn_height;
-    if (i == 2 || i == 4) {
-      tam = 3;
-    } else {
-      tam = 2;
-    }
-    btn_matrix[i].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, BLACK, CYAN, BLACK, matrix_labels[i], tam);
-    btn_matrix[i].drawButton(false);
+  int tam = 2;  // para modificar el tamaño
+
+  tft.fillScreen(CYAN);
+  btn_matrix[1].initButton(&tft, btn_width + btn_width / 2, 0 + btn_height / 2, btn_width - 2, btn_height - 2, WHITE, BLACK, WHITE, matrix_labels[1], tam);
+  btn_matrix[1].drawButton(false);
+  tft.setTextColor(BLACK);
+  for (int i = 0; i < 5; i++) {
+    tft.setCursor(OFFSET, OFFSET + (1 + i) * btn_height);
+    tft.setTextSize(2);
+    tft.print(matrix_mediciones[i]);
+    tft.setCursor(OFFSET + 1.1 * btn_width, OFFSET + (1 + i) * btn_height);
+    tft.setTextSize(2);
+    tft.print(String(0));
+    tft.setCursor(OFFSET + 1.5 * btn_width, OFFSET + (1 + i) * btn_height);
+    tft.setTextSize(1);
+    tft.print(matrix_unidades[i]);
   }
 }
 
@@ -548,7 +555,7 @@ void Pantalla_2() {
     int col = i % 3;
     int x = col * btn_width;
     int y = row * btn_height;
-    btn_digits[i].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, BLACK, CYAN, BLACK, labels[i], 2);
+    btn_digits[i].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, WHITE, CYAN, BLACK, labels[i], 2);
     btn_digits[i].drawButton(false);
   }
 
@@ -558,7 +565,7 @@ void Pantalla_2() {
   for (int i = 0; i < 4; i++) {
     int x = tft.width() / 2 + right_btn_width / 2;
     int y = i * right_btn_height;
-    right_btns[i].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, BLACK, CYAN, BLACK, right_labels[i], 2);
+    right_btns[i].initButton(&tft, x, y + right_btn_height / 2, right_btn_width - 2, right_btn_height - 2, WHITE, CYAN, BLACK, right_labels[i], 2);
     right_btns[i].drawButton(false);
   }
 }
@@ -573,7 +580,7 @@ void Tactil_1() {
     btn_matrix[1].drawButton();
   if (btn_matrix[1].justPressed()) {
     btn_matrix[1].drawButton(true);
-    tft.fillScreen(WHITE);
+    tft.fillScreen(BLACK);
     indice_medidor = 0;
     indice_parametro = 0;
     pant = 1;
@@ -620,10 +627,10 @@ void SeleccionNumerica(int i) {
       valor_teclado = 0;
       MostrarValorTeclado(valor_teclado);
     } else {
+      bit_cambio = 1;
       tft.fillScreen(WHITE);
       Pantalla_1();
       pant = 0;
-      bit_cambio = 1;
       indice_medidor = 0;
       indice_parametro = 0;
     }
@@ -680,51 +687,23 @@ void SeleccionParametro(int i) {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // muestra los valores en la primera pantalla
 void MostrarValorPantalla(int valor, int parametro) {
-  int aux, aux_1, aux_2;
-  dtostrf(valor, N_TOTAL, DECIMALES, buffer);
-  switch (parametro) {
-    case 0:
-      aux = 0;    // columna
-      aux_1 = 0;  // fila
-      aux_2 = 0;  // elemento
-      break;
-    case 1:
-      aux = 1;
-      aux_1 = 1;
-      aux_2 = 3;
-      break;
-    case 2:
-      aux = 1;
-      aux_1 = 2;
-      aux_2 = 5;
-      break;
-    case 3:
-      aux = 1;
-      aux_1 = 3;
-      aux_2 = 7;
-      break;
-    case 4:
-      aux = 1;
-      aux_1 = 4;
-      aux_2 = 9;
-      break;
-    case 5:
-      aux = 1;
-      aux_1 = 5;
-      aux_2 = 11;
-      break;
-    default:
-      aux = 0;
-      aux_1 = 0;
-      aux_2 = 0;
-      break;
-  }
+  //*
   int btn_width = tft.width() / 2;
   int btn_height = tft.height() / 6;
-  int x = aux * btn_width;
-  int y = aux_1 * btn_height;
-  btn_matrix[aux_2].initButton(&tft, x + btn_width / 2, y + btn_height / 2, btn_width - 2, btn_height - 2, BLACK, CYAN, BLACK, buffer, 2);
-  btn_matrix[aux_2].drawButton(false);
+  tft.setTextColor(BLACK);
+  if (parametro == 0) {
+    tft.fillRect(OFFSET, OFFSET, 100, 33, CYAN);
+    tft.setTextSize(2);
+    tft.setCursor(OFFSET, OFFSET);
+    tft.println(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year));
+    tft.setCursor(OFFSET, 17 + OFFSET);
+    tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo));
+  } else {
+    tft.fillRect(OFFSET + 1.1 * btn_width, OFFSET + (parametro)*btn_height, 50, 33, CYAN);
+    tft.setCursor(OFFSET + 1.1 * btn_width, OFFSET + (parametro)*btn_height);
+    tft.setTextSize(2);
+    tft.print(String(valor));
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -787,7 +766,7 @@ float ObtenerParametro() {
 
   switch (indice_medidor) {
     case 0:  // General
-      auxiliar = 0;
+      auxiliar = color_pantalla;
       break;
     case 1:  // nivel
       switch (indice_parametro) {
@@ -904,7 +883,8 @@ void GuardarParametro(uint16_t valor) {
 
   switch (indice_medidor) {
     case 0:  // General
-      ;
+      color_pantalla = valor;
+      tft.invertDisplay(color_pantalla);
       break;
     case 1:  // nivel
       switch (indice_parametro) {

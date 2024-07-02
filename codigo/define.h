@@ -14,6 +14,8 @@ extern "C" {
 #define FALSE 0
 #define DEBUG TRUE
 
+#define OFFSET (7) // usado para mover el texto
+
 #define N_TOTAL (7)
 #define DECIMALES (0)
 
