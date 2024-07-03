@@ -10,11 +10,11 @@
 extern "C" {
 #endif
 
-#define TRUE 1
-#define FALSE 0
+#define TRUE (1)
+#define FALSE (0)
 #define DEBUG TRUE
 
-#define OFFSET (7) // usado para mover el texto
+#define OFFSET (7)  // usado para mover el texto
 
 #define N_TOTAL (7)
 #define DECIMALES (0)
@@ -40,7 +40,7 @@ extern "C" {
 #define LEER_ENTRADA digitalRead(INTERRUPCION_C1)  //!> bsp //--------------------------------------------------------->
 #define NUMB_ELEMENTS 5                            // numero de elementos del vector
 #define CAUDAL_MINIMO 0                            //caudal minimo como filtro
-#define SEGUNDO_POR_HORA (10)                       //3600
+#define SEGUNDO_POR_HORA (10)                      //3600
 
 //! definiciones del codigo de tiempo
 #define RTC false
@@ -65,10 +65,10 @@ extern "C" {
 #define INTERRUPCION_PULSE (19)  // pin de interrupcion
 
 //! definiciones de modulo tarjeta SD interface SPI
-#define PIN_SPI_SS (53)
-#define PIN_SPI_MOSI (51)
-#define PIN_SPI_MISO (50)
-#define PIN_SPI_SCK (52)
+#define SD_ACTIVE TRUE  // compila el codigo en true
+#define PIN_CS (53)     // pin de habilitacion en la placa
+#define TIEMPO_SD (15)  // TIEMPO ENTRE GUARDADOS
+#define INTENTOS (5)    // numero de intentos para abrir la tarjeta sd
 
 //! definiciones de tiempos ----> UNIDAD DE 0.1 SEG  --> EJ 1 seg EQ 10 o tambien 10 seg EQ 100
 #define TIME_BASE (1000 * 1000)       // EN micro segundos

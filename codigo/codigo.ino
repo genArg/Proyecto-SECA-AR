@@ -3,11 +3,13 @@
 MCUFRIEND_kbv tft;
 #include <TouchScreen.h>
 #include <TimerOne.h>
+#include <SPI.h>
+#include <SD.h>
 #include "define.h"
 #include "caudal.h"
 #include "tiempo.h"
 #include "presion.h"
-
+#include "tarjetaSD.h"
 
 #define PULSE_INT ((a_pulse == 0) && (b_pulse == 1))
 
@@ -58,12 +60,12 @@ const char* param_nivel[6] = { "Constante", "I min", "I MAX", "Ress", "Val min",
 const char* param_presion[6] = { "Constante", "I min", "I MAX", "Ress", "Pre min", "Pre MAX" };
 const char* param_caudal[3] = { "Constante", "In 1", "In 2" };
 const char* param_tiempo[5] = { "Minuto", "Hora", "Dia", "Mes", "Year" };
-const char* param_memoria[2] = { "Tiempo", "Codigo" };
+const char* param_memoria[3] = { "Habilitado", "Codigo", "Intervalo" };
 
 const char** parametros[6] = { param_gen, param_nivel, param_presion, param_caudal, param_tiempo, param_memoria };
 
 // Tamaños
-uint16_t Zise[6] = { 1, 6, 6, 3, 5, 2 };
+uint16_t Zise[6] = { 1, 6, 6, 3, 5, 3 };
 uint16_t indice_medidor = 0;
 uint16_t indice_parametro = 0;
 
@@ -123,10 +125,15 @@ int contador_happy_led = 0;
 // estado del pulsador previo
 uint8_t pin_estado_pulse, pin_estado_c1, pin_estado_c2, pin_auxiliar;
 
-
 //--------------------------------------------------------------------------------------------------------------------
-uint8_t color_pantalla = 0; // cambia la pantalla entre ocuro y claro
-uint16_t valor_aux;  // varibale de pruebas
+tarjeta_t tarjeta_1;
+// bit para habilitar el guardado de datos
+uint16_t bit_SD = 0;
+// contador para guradar datos en sd
+uint32_t contador_SD = 1;
+//--------------------------------------------------------------------------------------------------------------------
+uint8_t color_pantalla = 0;  // cambia la pantalla entre ocuro y claro
+uint16_t valor_aux;          // varibale de pruebas
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -189,9 +196,22 @@ void setup() {
   caudalimetro_1 = InicializarCaudal();
   caudalimetro_2 = InicializarCaudal();
   reloj_1 = InicializarReloj();
+  tarjeta_1 = InicializarTarjeta();
 
+  //--------------------------------------------------------------------------------------------------------------------
   //apaga el compresor
   digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
+
+
+//--------------------------------------------------------------------------------------------------------------------
+//inicia conexion con el sd
+#if SD_ACTIVE == TRUE
+  if (AbrirSD(tarjeta_1)) {
+    tarjeta_1->activo = 1;
+  } else {
+    tarjeta_1->activo = 0;
+  }
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -254,9 +274,18 @@ void loop() {
   // realiza los calculos del caudal especifico
   CalcularQEspecifico();
 
-  //--------------------------------------------------------------------------------------------------------------------
-  //guarda en sd
-
+//--------------------------------------------------------------------------------------------------------------------
+//guarda en sd
+#if SD_ACTIVE == TRUE
+  if (bit_SD) {
+    if (tarjeta_1->activo) {
+      bit_SD = 0;
+      contador_SD = 1;
+      AbrirSD(tarjeta_1);
+      GuardarDatos();
+    }
+  }
+#endif
   //--------------------------------------------------------------------------------------------------------------------
   // Pantalla
   if (pant) {
@@ -341,6 +370,38 @@ void FnCallback() {
   }
   if (contador_int_c2 == 0) {
     a_c2 = 1;
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if (tarjeta_1->activo) {
+    contador_SD = (contador_SD + 1) % (tarjeta_1->tiempo * TIME_60S);
+    if (contador_SD == 0) {
+      bit_SD = 1;
+    }
+  }
+  //--------------------------------------------------------------------------------------------------------------------
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void GuardarDatos() {
+  File myFile;
+  myFile = SD.open(tarjeta_1->nombre_file, FILE_WRITE);
+  if (myFile) {
+    myFile.print(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year) + ", ");         // fecha
+    myFile.print(String(reloj_1->hora) + "/" + String(reloj_1->minuto) + "/" + String(reloj_1->segundo) + ", ");  // hora                                                                        // hora
+    myFile.print(String(manometro_1->presion_media) + ", ");                                                      // presion
+    myFile.print(String(caudal_media) + ", ");                                                                    // caudal
+    myFile.print(String(nivel_alto->presion_media) + ", ");                                                       // nivel estatico
+    myFile.print(String(nivel_bajo->presion_media) + ", ");                                                       // nivel Dinamico
+    myFile.println(String(caudal_especifico) + ", ");                                                             // Caudal especifico
+    myFile.close();                                                                                               // Cerramos el archivo
+#if DEBUG == TRUE
+    Serial.println("TERMINO ESCRITURA");
+#endif
+  } else {
+#if DEBUG == TRUE
+    Serial.println("Error al abrir el archivo para escritura");
+#endif
   }
 }
 
@@ -858,11 +919,14 @@ float ObtenerParametro() {
       break;
     case 5:  //memoria
       switch (indice_parametro) {
-        case 0:  // tiempo
-
+        case 0:  // habilitar
+          auxiliar = tarjeta_1->activo;
           break;
         case 1:  // codigo
-
+          auxiliar = tarjeta_1->codigo;
+          break;
+        case 2:  // tiempo
+          auxiliar = tarjeta_1->tiempo;
           break;
         default:
 
@@ -989,11 +1053,22 @@ void GuardarParametro(uint16_t valor) {
       break;
     case 5:  //memoria
       switch (indice_parametro) {
-        case 0:  // tiempo
-
+        case 0:  // habilitar
+          if (valor) {
+            if (AbrirSD(tarjeta_1)) {
+              tarjeta_1->activo = 1;
+            } else {
+              tarjeta_1->activo = 0;
+            }
+          } else {
+            tarjeta_1->activo = 0;
+          }
           break;
         case 1:  // codigo
-
+          tarjeta_1->codigo = valor;
+          break;
+        case 2:  // tiempo
+          tarjeta_1->tiempo = valor;
           break;
         default:
 
