@@ -16,7 +16,7 @@ extern "C" {
 
 #define OFFSET (7)  // usado para mover el texto
 
-#define N_TOTAL (7)
+#define N_TOTAL (4)
 #define DECIMALES (0)
 
 #define MINPRESSURE 200
@@ -59,9 +59,9 @@ extern "C" {
 #define TENSION_ADC 5     // tension maxima del ADC
 
 //! definiciones para entradas y salidas digitales
-#define PIN_HAPPY_LED (37)
+#define PIN_HAPPY_LED (35)
 #define PIN_READY (31)
-#define PIN_OUT_COMPRESOR (45)   //--------------------------------------------------------->
+#define PIN_OUT_COMPRESOR (39)   //--------------------------------------------------------->
 #define INTERRUPCION_PULSE (19)  // pin de interrupcion
 
 //! definiciones de modulo tarjeta SD interface SPI
@@ -73,9 +73,9 @@ extern "C" {
 //! definiciones de tiempos ----> UNIDAD DE 0.1 SEG  --> EJ 1 seg EQ 10 o tambien 10 seg EQ 100
 #define TIME_BASE (1000 * 1000)       // EN micro segundos
 #define TIME_VALOR_COMPRESOR (18000)  // valor en segundos cada cuanto se enciende el compresor
-#define TIME_INT_PULSE (5)            //TIEMP ENTRE DOS POSBLES INTERRUPCIONES DEL MISMO PIN
-#define TIME_INT_C1 (5)
-#define TIME_INT_C2 (5)
+#define TIME_INT_PULSE (1)            //TIEMP ENTRE DOS POSBLES INTERRUPCIONES DEL MISMO PIN
+#define TIME_INT_C1 (1)
+#define TIME_INT_C2 (1)
 #define TIME_HAPPY_LED (100000)
 #define TIME_1S (6)
 #define TIME_10S (66)

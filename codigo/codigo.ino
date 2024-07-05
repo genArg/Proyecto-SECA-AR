@@ -28,8 +28,8 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 Adafruit_GFX_Button btn_matrix[12];  // Botones 5 filas x 2 columnas
 const char* matrix_labels[12] = { "Hora", "Config", "Presion", "x", "Caudal", "x", "Nivel Estatico", "x", "Nivel Dinamico", "x", "Q Especifico", "x" };
 
-const char* matrix_mediciones[5] = { " Presion ", " Caudal ", "Niv Estatico ", "Niv Dinamico ", " Q Especifico " };
-const char* matrix_unidades[5] = { "[Pa] ", "[l/h] ", "[m]", "[m] ", "[l/(m.h)]" };
+const char* matrix_mediciones[5] = { "Presion ", "Caudal ", "Niv Estatico ", "Niv Dinamico ", "Q Especifico " };
+const char* matrix_unidades[5] = { "[bar] ", "[m3/h] ", "[m]", "[m] ", "[m3/(m.h)]" };
 
 
 // Botones para la pantalla_2
@@ -149,10 +149,10 @@ void setup() {
   Timer1.attachInterrupt(FnCallback);  // Adjunta la función de callback
 
   //--------------------------------------------------------------------------------------------------------------------
-  // Configurar el pin 13 como salida
-  pinMode(LED_BUILTIN, OUTPUT);
+  // Configurar el del compresor led como salida
+  pinMode(PIN_OUT_COMPRESOR, OUTPUT);
   // Configurar el pin PIN_READY como entrada
-  pinMode(PIN_READY, INPUT_PULLUP);
+  pinMode(PIN_READY, INPUT);
   // Configurar el pin PIN_HAPPY_LED como salida
   pinMode(PIN_HAPPY_LED, OUTPUT);
   // Configurar el pines de interrupcion como entreadas
@@ -168,9 +168,9 @@ void setup() {
   // Habilitar la interrupción en el pin 21
   // attachInterrupt(digitalPinToInterrupt(pin), ISR, mode)
   // mode puede ser: LOW, CHANGE, RISING, FALLING, HIGH
-  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_PULSE), ISR_Pin, RISING);
-  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C1), ISR_Pin, RISING);
-  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C2), ISR_Pin, RISING);
+  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_PULSE), ISR_Pin, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C1), ISR_Pin, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C2), ISR_Pin, CHANGE);
   a_pulse = 1;
   a_c1 = 1;
   a_c2 = 1;
@@ -203,15 +203,17 @@ void setup() {
   digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
 
 
-//--------------------------------------------------------------------------------------------------------------------
-//inicia conexion con el sd
+  //--------------------------------------------------------------------------------------------------------------------
+  //inicia conexion con el sd
+  if (tarjeta_1->activo) {
 #if SD_ACTIVE == TRUE
-  if (AbrirSD(tarjeta_1)) {
-    tarjeta_1->activo = 1;
-  } else {
-    tarjeta_1->activo = 0;
-  }
+    if (AbrirSD(tarjeta_1)) {
+      tarjeta_1->activo = 1;
+    } else {
+      tarjeta_1->activo = 0;
+    }
 #endif
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -234,6 +236,7 @@ void loop() {
 
 #if DEBUG == TRUE
         Serial.println("READY_ON");
+        bit_SD = 1;
 #endif
       }
     }
@@ -256,6 +259,7 @@ void loop() {
 
 #if DEBUG == TRUE
         Serial.println("READY_OFF");
+        bit_SD = 1;
 #endif
       }
     }
@@ -384,6 +388,8 @@ void FnCallback() {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void GuardarDatos() {
+  // Deshabilita todas las interrupciones
+  noInterrupts();
   File myFile;
   myFile = SD.open(tarjeta_1->nombre_file, FILE_WRITE);
   if (myFile) {
@@ -403,6 +409,8 @@ void GuardarDatos() {
     Serial.println("Error al abrir el archivo para escritura");
 #endif
   }
+  // Habilita todas las interrupciones
+  interrupts();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -448,9 +456,18 @@ void FnsIrsAuxiliares() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Definir la función de interrupción
 void ISR_Pin() {
+#if DEBUG == TRUE
+  Serial.println("int_int");
+#endif
   if (pin_estado_pulse != (pin_auxiliar = digitalRead(INTERRUPCION_PULSE))) {
     pin_estado_pulse = pin_auxiliar;
+#if DEBUG == TRUE
+    Serial.println("interrupcion 19a");
+#endif
     if (a_pulse && pin_estado_pulse) {
+#if DEBUG == TRUE
+      Serial.println("interrupcion 19b");
+#endif
       a_pulse = 0;
       b_pulse = 1;
       contador_int_pulse = 1;
@@ -460,7 +477,13 @@ void ISR_Pin() {
 
   if (pin_estado_c1 != (pin_auxiliar = digitalRead(INTERRUPCION_C1))) {
     pin_estado_c1 = pin_auxiliar;
+#if DEBUG == TRUE
+    Serial.println("interrupcion 20a");
+#endif
     if (a_c1 && pin_estado_c1) {
+#if DEBUG == TRUE
+      Serial.println("interrupcion 20b");
+#endif
       a_c1 = 0;
       b_c1 = 1;
       contador_int_c1 = 1;
@@ -470,7 +493,13 @@ void ISR_Pin() {
 
   if (pin_estado_c2 != (pin_auxiliar = digitalRead(INTERRUPCION_C2))) {
     pin_estado_c2 = pin_auxiliar;
+#if DEBUG == TRUE
+    Serial.println("interrupcion 21a");
+#endif
     if (a_c2 && pin_estado_c2) {
+#if DEBUG == TRUE
+      Serial.println("interrupcion 21b");
+#endif
       a_c2 = 0;
       b_c2 = 1;
       contador_int_c2 = 1;
@@ -517,11 +546,15 @@ void PromediarCaudal() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Calcula el caudal especifico
 void CalcularQEspecifico() {
+  float auxiliar;
   if (nivel_alto->presion_media && nivel_bajo->presion_media && caudal_media) {
 
     delta_altura = nivel_alto->presion_media - nivel_bajo->presion_media;
 
-    caudal_especifico = (caudal_media) / (delta_altura);  // calcula el caudal especifico
+    auxiliar = (caudal_media) / (delta_altura);  // calcula el caudal especifico
+    if (auxiliar > 0) {
+      caudal_especifico = auxiliar;
+    }
   }
 }
 
@@ -600,7 +633,7 @@ void Pantalla_1() {
     tft.setCursor(OFFSET + 1.1 * btn_width, OFFSET + (1 + i) * btn_height);
     tft.setTextSize(2);
     tft.print(String(0));
-    tft.setCursor(OFFSET + 1.5 * btn_width, OFFSET + (1 + i) * btn_height);
+    tft.setCursor(OFFSET + 1.57 * btn_width, OFFSET + (1 + i) * btn_height);
     tft.setTextSize(1);
     tft.print(matrix_unidades[i]);
   }
@@ -747,7 +780,7 @@ void SeleccionParametro(int i) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // muestra los valores en la primera pantalla
-void MostrarValorPantalla(int valor, int parametro) {
+void MostrarValorPantalla(float valor, int parametro) {
   //*
   int btn_width = tft.width() / 2;
   int btn_height = tft.height() / 6;
@@ -760,8 +793,8 @@ void MostrarValorPantalla(int valor, int parametro) {
     tft.setCursor(OFFSET, 17 + OFFSET);
     tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo));
   } else {
-    tft.fillRect(OFFSET + 1.1 * btn_width, OFFSET + (parametro)*btn_height, 50, 33, CYAN);
-    tft.setCursor(OFFSET + 1.1 * btn_width, OFFSET + (parametro)*btn_height);
+    tft.fillRect(OFFSET + 1 * btn_width, OFFSET + (parametro)*btn_height, 70, 33, CYAN);
+    tft.setCursor(OFFSET + 1 * btn_width, OFFSET + (parametro)*btn_height);
     tft.setTextSize(2);
     tft.print(String(valor));
   }

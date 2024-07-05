@@ -41,6 +41,8 @@ extern "C" {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int AbrirSD(tarjeta_t tarjeta) {
+  // Deshabilita todas las interrupciones
+  noInterrupts();
   int auxiliar;
 #if DEBUG == TRUE
   Serial.print("Initializing SD card...");
@@ -63,11 +65,15 @@ int AbrirSD(tarjeta_t tarjeta) {
 #if DEBUG == TRUE
   Serial.println("initialization done.");
 #endif
+  // Habilita todas las interrupciones
+  interrupts();
   return auxiliar;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void IniciarDocumento(tarjeta_t tarjeta) {
+  // Habilita todas las interrupciones
+  interrupts();
   File myFile;
   myFile = SD.open(tarjeta->nombre_file, FILE_WRITE);
   if (myFile) {
@@ -88,6 +94,9 @@ void IniciarDocumento(tarjeta_t tarjeta) {
     Serial.println("Error al abrir el archivo para escritura");
 #endif
   }
+  // Habilita todas las interrupciones
+  interrupts();
+  return;
 }
 
 
