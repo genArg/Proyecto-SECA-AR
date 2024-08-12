@@ -13,21 +13,7 @@ extern "C" {
   // es el tiempo que se toma del RTC
   uint32_t TomarTiempo(reloj_t reloj);
 
-
-
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if RTC == true
-
-  uint32_t TomarTiempo(reloj_t reloj) {
-    return 1;
-  }
-
-#endif
-
 //////////////////////////////////////////////////////
-#if RTC == false
   //! puntero a un reloj de 1 señal
 
   // Estructra
@@ -82,19 +68,6 @@ extern "C" {
       }
     }
   }
-
-  uint32_t TomarTiempo(reloj_t reloj) {
-    uint16_t a, b, c;
-    c = reloj->segundo;
-    b = reloj->minuto;
-    a = reloj->hora;
-    uint32_t tiempo;
-    tiempo = (a * 3600) + (b * 60) + c;
-
-    return tiempo;
-  }
-
-#endif
 
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////

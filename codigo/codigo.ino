@@ -5,6 +5,8 @@ MCUFRIEND_kbv tft;
 #include <TimerOne.h>
 #include <SPI.h>
 #include <SD.h>
+#include <DS3231.h>
+#include <Wire.h>
 #include "define.h"
 #include "caudal.h"
 #include "tiempo.h"
@@ -84,8 +86,10 @@ uint8_t aux_refresh = 0;
 // contador delta de tiempo entre mediciones
 uint16_t contador_compresor = 1;
 uint16_t contador_200ms = 1;
+uint8_t bit_pantalla_actualizar = 0;
 uint16_t contador_1s = 1;
 uint16_t contador_10s = 1;
+uint16_t contador_60s = 1;
 // bit para iniciar el tiempo de espera hasta tomar la medicion
 uint8_t bit_compresor = 0;
 // cantidad de niveles dinamicos sobre cantidad de valores estaticos
@@ -131,9 +135,31 @@ tarjeta_t tarjeta_1;
 uint16_t bit_SD = 0;
 // contador para guradar datos en sd
 uint32_t contador_SD = 1;
+
+//--------------------------------------------------------------------------------------------------------------------
+// variables RTC
+DS3231 myRTC;
+uint8_t sec_up_RTC = 0;
+//*
+// Variables for use in method parameter lists for interrupt
+byte alarmDay;
+byte alarmHour;
+byte alarmMinute;
+byte alarmSecond;
+byte alarmBits;
+bool alarmDayIsDay;
+bool alarmH12;
+bool alarmPM;
+// bit de signal para reiniciar la alarma
+volatile byte tick = 1;
+// myRTC interrupt pin
+#define CLINT 19
+//*/
 //--------------------------------------------------------------------------------------------------------------------
 uint8_t color_pantalla = 0;  // cambia la pantalla entre ocuro y claro
 uint16_t valor_aux;          // varibale de pruebas
+byte state = false;          // para la prueba de la interrupcion del rtc
+int contador_rtc = 0;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -143,8 +169,8 @@ void setup() {
   Serial.println("OK");
 #endif
 
-
   //--------------------------------------------------------------------------------------------------------------------
+  // timer
   Timer1.initialize(TIME_BASE);        // Inicializa el temporizador a 1 segundo (100000 µs)
   Timer1.attachInterrupt(FnCallback);  // Adjunta la función de callback
 
@@ -168,9 +194,9 @@ void setup() {
   // Habilitar la interrupción en el pin 21
   // attachInterrupt(digitalPinToInterrupt(pin), ISR, mode)
   // mode puede ser: LOW, CHANGE, RISING, FALLING, HIGH
-  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_PULSE), ISR_Pin, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C1), ISR_Pin, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C2), ISR_Pin, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(INTERRUPCION_PULSE), ISR_Pin, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C1), ISR_Pin, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C2), ISR_Pin, CHANGE);
   a_pulse = 1;
   a_c1 = 1;
   a_c2 = 1;
@@ -189,7 +215,7 @@ void setup() {
   Pantalla_1();
 
   //--------------------------------------------------------------------------------------------------------------------
-
+  // objetos del codigo
   nivel_alto = InicializarManometro();
   nivel_bajo = InicializarManometro();
   manometro_1 = InicializarManometro();
@@ -202,6 +228,15 @@ void setup() {
   //apaga el compresor
   digitalWrite(PIN_OUT_COMPRESOR, LOW);  //apaga el compresor
 
+
+  //--------------------------------------------------------------------------------------------------------------------
+  //RTC
+  // Start the I2C interface
+  Wire.begin();
+  bool mode12 = false;         // use 24-hour clock mode
+  myRTC.setClockMode(mode12);  // uploads 'true' (1) to bit 6 of register 0x02
+  CopiarDate();                // carga la fecha del RTC a reloj_1
+  IntRTC();                    // Configura la interrupcion desde el rtc
 
   //--------------------------------------------------------------------------------------------------------------------
   //inicia conexion con el sd
@@ -294,10 +329,11 @@ void loop() {
   // Pantalla
   if (pant) {
     Tactil_2();
-    RefrescarPantalla_2();  // muestra los valores en pantalla
+    RefrescarPantalla_2();  // muestra los valores en pantalla Configuracion
   } else {
-    if (contador_200ms) {
-      RefrescarPantalla_1();  // muestra los valores en pantalla
+    if (bit_pantalla_actualizar) {
+      RefrescarPantalla_1();  // muestra los valores en pantalla Home
+      bit_pantalla_actualizar = 0;
     }
 
     Tactil_1();
@@ -308,27 +344,55 @@ void loop() {
 
   //--------------------------------------------------------------------------------------------------------------------
   digitalWrite(PIN_HAPPY_LED, happy_led_estado);
+  //--------------------------------------------------------------------------------------------------------------------
+  //*
+  // reinicia la alarma del rtc
+  if (tick) {
+    LimpiarAlarma();
+  }
+  //*/
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // funcion llama de interrupcion del temporizador
 void FnCallback() {
+  contador_rtc++;
 
   //--------------------------------------------------------------------------------------------------------------------
-  if (0 == (contador_200ms = (contador_200ms) ? 0 : 1)) {
+  if (sec_up_RTC) {
+    // aumenta en 1 segundo el reloj interno
+    UnSegundoReloj(reloj_1);
+    // bandera indica que se modifico la hora
+    bit_hora = 1;
+    // reinicia la bandera de la interrupcion de 1 segundo
+    sec_up_RTC = 0;
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  // comprobacion cada 200 ms
+  if (0 == (contador_200ms = (contador_200ms + 1) % (2 * TIME_100MS))) {
+    // bit para actualizar la pantalla
+    bit_pantalla_actualizar = 1;
+
+    // comprueba si cambio el estado de los pulsadores
+    ISR_Pin();
   }
 
   //--------------------------------------------------------------------------------------------------------------------
   if (0 == (contador_1s = (contador_1s + 1) % TIME_1S)) {
+    happy_led_estado = (happy_led_estado) ? 0 : 1;
+    bit_1m = 1;
+    bit_caudal_especifico = 1;
   }
 
   //--------------------------------------------------------------------------------------------------------------------
   if (0 == (contador_10s = (contador_10s + 1) % TIME_10S)) {
-    happy_led_estado = (happy_led_estado) ? 0 : 1;
-    // aumenta en 1 segundo el reloj interno
-    UnSegundoReloj(reloj_1);
     bit_hora = 1;
+  }
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if (0 == (contador_60s = (contador_60s + 1) % TIME_60S)) {
   }
 
   //--------------------------------------------------------------------------------------------------------------------
@@ -337,7 +401,7 @@ void FnCallback() {
   //--------------------------------------------------------------------------------------------------------------------
   // timer del compresor
   if (bit_compresor == 0) {
-    contador_compresor = (contador_compresor + 1) % (100 * TIME_10S);  //TIME_VALOR_COMPRESOR debe ser 1 minuto;
+    contador_compresor = (contador_compresor + 1) % (6 * TIME_10S);  //TIME_VALOR_COMPRESOR debe ser 1 minuto;
   }
   if (contador_compresor == 0) {
     bit_compresor = 1;
@@ -356,8 +420,6 @@ void FnCallback() {
   // timer para contar 1 min para tomar la presion
   contador_1m = (contador_1m + 1) % TIME_10S;
   if (contador_1m == 0) {
-    bit_1m = 1;
-    bit_caudal_especifico = 1;
   }
 
   //--------------------------------------------------------------------------------------------------------------------
@@ -456,9 +518,6 @@ void FnsIrsAuxiliares() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Definir la función de interrupción
 void ISR_Pin() {
-#if DEBUG == TRUE
-  Serial.println("int_int");
-#endif
   if (pin_estado_pulse != (pin_auxiliar = digitalRead(INTERRUPCION_PULSE))) {
     pin_estado_pulse = pin_auxiliar;
 #if DEBUG == TRUE
@@ -487,7 +546,8 @@ void ISR_Pin() {
       a_c1 = 0;
       b_c1 = 1;
       contador_int_c1 = 1;
-      CaudalGuardarTiempo(caudalimetro_1, TomarTiempo(reloj_1));
+      //CaudalGuardarTiempo(caudalimetro_1, TomarTiempo(reloj_1));
+      TomarTiempo(caudalimetro_1);
     }
   }
 
@@ -503,7 +563,8 @@ void ISR_Pin() {
       a_c2 = 0;
       b_c2 = 1;
       contador_int_c2 = 1;
-      CaudalGuardarTiempo(caudalimetro_2, TomarTiempo(reloj_1));
+      //CaudalGuardarTiempo(caudalimetro_2, TomarTiempo(reloj_1));
+      TomarTiempo(caudalimetro_2);
     }
   }
 }
@@ -540,6 +601,10 @@ void PromediarCaudal() {
   Serial.println(nivel_bajo->presion_media);
   Serial.print("manometro_1->presion_media: ");
   Serial.println(manometro_1->presion_media);
+  Serial.print("caudalimetro_1->tiempo 1: ");
+  Serial.println(caudalimetro_1->delta_tiempo);
+  Serial.print("caudalimetro_2->tiempo 2: ");
+  Serial.println(caudalimetro_2->delta_tiempo);
 #endif
 }
 
@@ -559,7 +624,7 @@ void CalcularQEspecifico() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//Refresca el valr de la pantalla 1
+//Refresca el valr de la pantalla 1 Home
 void RefrescarPantalla_1() {
   if (bit_hora || bit_cambio) {
     MostrarValorPantalla(reloj_1->segundo, 0);  //hora
@@ -970,6 +1035,12 @@ float ObtenerParametro() {
 
       break;
   }
+#if DEBUG == TRUE
+  Serial.print("indice_medidor--------------> ");
+  Serial.println(indice_medidor);
+  Serial.print("indice_parametro--------------> ");
+  Serial.println(indice_parametro);
+#endif
   return auxiliar;
 }
 
@@ -1065,19 +1136,28 @@ void GuardarParametro(uint16_t valor) {
     case 4:  // tiempo
       switch (indice_parametro) {
         case 0:  // minuto
+          myRTC.setSecond(0);
+          reloj_1->segundo = 0;
+          myRTC.setMinute(valor);
           reloj_1->minuto = valor;
           break;
         case 1:  // hora
+          myRTC.setHour(valor);
           reloj_1->hora = valor;
           break;
         case 2:  // dia
+          myRTC.setDate(valor);
           reloj_1->dia = valor;
           break;
         case 3:  // mes
+          myRTC.setMonth(valor);
           reloj_1->mes = valor;
           break;
         case 4:  // año
-          reloj_1->year = valor;
+          if (valor > 2000) {
+            myRTC.setYear(valor - 2000);
+            reloj_1->year = valor;
+          }
           break;
         default:
 
@@ -1112,4 +1192,107 @@ void GuardarParametro(uint16_t valor) {
 
       break;
   }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Trasferir hora desde RTC
+void CopiarDate() {
+  // segundo
+  reloj_1->segundo = myRTC.getSecond();
+  // minuto
+  reloj_1->minuto = myRTC.getMinute();
+  // hora
+  bool h12 = false;  // formato de 24 horas
+  bool hPM;
+  reloj_1->hora = myRTC.getHour(h12, hPM);
+  // dia
+  reloj_1->dia = myRTC.getDate();
+  // mes
+  bool CenturyBit;
+  reloj_1->mes = myRTC.getMonth(CenturyBit);
+  // año
+  reloj_1->year = 2000 + myRTC.getYear();
+  return;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//*
+// Preparacion de la interrupcion para RTC
+void IntRTC() {
+  // Assign parameter values for Alarm 1
+  alarmDay = 0;
+  alarmHour = 0;
+  alarmMinute = 0;
+  alarmSecond = 0;
+  alarmBits = 0b00001111;  // Alarm 1 every second
+  alarmDayIsDay = false;
+  alarmH12 = false;
+  alarmPM = false;
+
+  // Set alarm 1 to fire at one-second intervals
+  myRTC.turnOffAlarm(1);
+  myRTC.setA1Time(
+    alarmDay, alarmHour, alarmMinute, alarmSecond,
+    alarmBits, alarmDayIsDay, alarmH12, alarmPM);
+  // enable Alarm 1 interrupts
+  myRTC.turnOnAlarm(1);
+  // clear Alarm 1 flag
+  myRTC.checkIfAlarm(1);
+  // disable Alarm 2 interrupt
+  myRTC.turnOffAlarm(2);
+  // clear Alarm 2 flag
+  myRTC.checkIfAlarm(2);
+
+  // NOTE: both of the alarm flags must be clear
+  // to enable output of a FALLING interrupt
+
+  // attach clock interrupt
+  pinMode(CLINT, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(CLINT), isr_TickTock, FALLING);
+  return;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Funcion interrupcion para RTC
+void isr_TickTock() {
+  // interrupt signals to loop
+  tick = 1;
+  // flag para incrementar 1 segundo en el reloj del arduino
+  sec_up_RTC = 1;
+#if DEBUG_RTC == TRUE
+  state = ~state;
+  Serial.println((state ? "ON" : "OFF"));
+#endif
+  return;
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Funcion interrupcion para RTC
+void LimpiarAlarma() {
+  tick = 0;
+  // Clear Alarm 1 flag
+  myRTC.checkIfAlarm(1);
+#if DEBUG_RTC == TRUE
+  Serial.println(contador_rtc);
+#endif
+  contador_rtc = 0;
+}
+//*/
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Funcion para guardar el tiempo
+void TomarTiempo(caudalimetro_t caudalimetro) {
+  caudalimetro->milisegundo_ant = caudalimetro->milisegundo;  // son decenas de milisegundos
+  caudalimetro->segundo_ant = caudalimetro->segundo;
+  caudalimetro->minuto_ant = caudalimetro->minuto;
+  caudalimetro->hora_ant = caudalimetro->hora;
+  caudalimetro->dia_ant = caudalimetro->dia;
+  caudalimetro->mes_ant = caudalimetro->mes;
+  caudalimetro->year_ant = caudalimetro->year;
+
+  caudalimetro->milisegundo = contador_rtc;  // son decenas de milisegundos
+  caudalimetro->segundo = reloj_1->segundo;
+  caudalimetro->minuto = reloj_1->minuto;
+  caudalimetro->hora = reloj_1->hora;
+  caudalimetro->dia = reloj_1->dia;
+  caudalimetro->mes = reloj_1->mes;
+  caudalimetro->year = reloj_1->year;
 }

@@ -13,6 +13,8 @@ extern "C" {
 #define TRUE (1)
 #define FALSE (0)
 #define DEBUG TRUE
+#define DEBUG_RTC FALSE
+#define DEBUG_RTC_2 TRUE
 
 #define OFFSET (7)  // usado para mover el texto
 
@@ -35,15 +37,14 @@ extern "C" {
 
 
 //! definiciones del codigo de caudal
-#define INTERRUPCION_C1 (20)                       // pin de interrupcion
-#define INTERRUPCION_C2 (21)                       // pin de interrupcion
+#define INTERRUPCION_C1 (29)                       // pin de interrupcion
+#define INTERRUPCION_C2 (33)                       // pin de interrupcion
 #define LEER_ENTRADA digitalRead(INTERRUPCION_C1)  //!> bsp //--------------------------------------------------------->
 #define NUMB_ELEMENTS 5                            // numero de elementos del vector
 #define CAUDAL_MINIMO 0                            //caudal minimo como filtro
-#define SEGUNDO_POR_HORA (10)                      //3600
+#define SEGUNDO_POR_HORA (3600)                    //3600
 
 //! definiciones del codigo de tiempo
-#define RTC false
 #define DIA 28
 #define MES 6
 #define YEAR 2024
@@ -59,10 +60,10 @@ extern "C" {
 #define TENSION_ADC 5     // tension maxima del ADC
 
 //! definiciones para entradas y salidas digitales
-#define PIN_HAPPY_LED (35)
-#define PIN_READY (31)
-#define PIN_OUT_COMPRESOR (39)   //--------------------------------------------------------->
-#define INTERRUPCION_PULSE (19)  // pin de interrupcion
+#define PIN_HAPPY_LED (45)
+#define PIN_READY (37)
+#define PIN_OUT_COMPRESOR (41)   //--------------------------------------------------------->
+#define INTERRUPCION_PULSE (25)  // pin de interrupcion
 
 //! definiciones de modulo tarjeta SD interface SPI
 #define SD_ACTIVE TRUE  // compila el codigo en true
@@ -71,16 +72,15 @@ extern "C" {
 #define INTENTOS (5)    // numero de intentos para abrir la tarjeta sd
 
 //! definiciones de tiempos ----> UNIDAD DE 0.1 SEG  --> EJ 1 seg EQ 10 o tambien 10 seg EQ 100
-#define TIME_BASE (1000 * 1000)       // EN micro segundos
+#define TIME_BASE (10000)             // -> 10000 equivale a 100 veces en un segundo aproximado  -> 10 milisegundos
 #define TIME_VALOR_COMPRESOR (18000)  // valor en segundos cada cuanto se enciende el compresor
-#define TIME_INT_PULSE (1)            //TIEMP ENTRE DOS POSBLES INTERRUPCIONES DEL MISMO PIN
-#define TIME_INT_C1 (1)
-#define TIME_INT_C2 (1)
-#define TIME_HAPPY_LED (100000)
-#define TIME_1S (6)
-#define TIME_10S (66)
-#define TIME_60S (66 * 6)
-
+#define TIME_100MS (10)
+#define TIME_1S (100)
+#define TIME_10S (10 * TIME_1S)
+#define TIME_60S (60 * TIME_1S)
+#define TIME_INT_PULSE (5 * TIME_100MS)  //TIEMPO ENTRE DOS POSBLES INTERRUPCIONES DEL MISMO PIN
+#define TIME_INT_C1 (5 * TIME_100MS)
+#define TIME_INT_C2 (5 * TIME_100MS)
 
 #ifdef __cplusplus
 }
