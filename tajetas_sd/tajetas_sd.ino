@@ -2,18 +2,20 @@
 #include <SD.h>
 
 #define DEBUG TRUE
-#define PIN_CS 10  //53
+#define PIN_CS 53 // 10  //53
 
 File myFile;
 char nombre_file[20];
-int codigo = 123;
+int codigo = 1234;
 
 void setup() {
 #if DEBUG == TRUE
   Serial.begin(9600);
 #endif
-  AbrirSD();
-  IniciarDocumento(nombre_file);
+  delay(100);
+#if DEBUG == TRUE
+  Serial.println("Ingresar 0 para guardar datos y 1 para dar formato");
+#endif
 }
 
 void loop() {
@@ -22,28 +24,38 @@ void loop() {
     String inputString = Serial.readString();  // Lee la cadena de texto ingresada
     inputString.trim();                        // Elimina los posibles espacios en blanco al inicio y al final
     if (inputString == "0") {
-      AbrirSD();
+      if (AbrirSD()) {
+        GuardarDatos(nombre_file);
+      }
     }
     if (inputString == "1") {
-      GuardarDatos(nombre_file);
+      if (AbrirSD()) {
+        IniciarDocumento(nombre_file);
+      }
     }
+#if DEBUG == TRUE
+    Serial.println("Ingresar 0 para guardar datos y 1 para dar formato");
+#endif
   }
 }
 
-void AbrirSD() {
+int AbrirSD() {
+  delay(100);
 #if DEBUG == TRUE
-  Serial.print("Initializing SD card...");
+  Serial.println("Initializing SD card...");
 #endif
   sprintf(nombre_file, "%d.csv", codigo);
   if (!SD.begin(PIN_CS)) {
 #if DEBUG == TRUE
     Serial.println("No inicio SD");
 #endif
-    return;
+    return 0;
   }
+  delay(100);
 #if DEBUG == TRUE
   Serial.println("initialization done.");
 #endif
+  return 1;
 }
 
 void IniciarDocumento(char nombre_file[]) {
@@ -67,18 +79,20 @@ void IniciarDocumento(char nombre_file[]) {
 #endif
   }
 }
-
 void GuardarDatos(char nombre_file[]) {
-  myFile = SD.open(nombre_file, FILE_WRITE);
+  if (SD.exists(nombre_file)) {
+    myFile = SD.open(nombre_file, FILE_WRITE);
+  } else {
+    myFile = SD.open(nombre_file, FILE_WRITE);
+  }
   if (myFile) {
-    myFile.print(String(codigo) + ", " + String(100));
+    myFile.print("dato 1, ");
     myFile.print("dato 2, ");
     myFile.print("dato 3, ");
     myFile.print("dato 4, ");
     myFile.print("dato 5, ");
     myFile.print("dato 6, ");
-    myFile.print("dato 7, ");
-    myFile.println("dato 8");
+    myFile.println("dato 7");
     myFile.close();  // Cerramos el archivo
 #if DEBUG == TRUE
     Serial.println("TERMINO ESCRITURA");

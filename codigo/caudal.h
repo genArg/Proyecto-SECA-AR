@@ -72,7 +72,7 @@ extern "C" {
       memset(cauda, 0, sizeof(cauda));
       cauda->tiempo = 0;
       cauda->tiempo_prev = 0;
-      cauda->constante = 100;
+      cauda->constante = 1;
       cauda->indice = 0;
       cauda->caudal_promedio = 0;
       cauda->habilitacion = 1;
@@ -96,10 +96,10 @@ extern "C" {
   }
 
   void ParametrizarCaudalimetro(caudalimetro_t cauda, uint16_t constante) {
-    if (100 == constante) {
-      cauda->constante = 100;
+    if (1 == constante) {
+      cauda->constante = 1;
     } else {
-      cauda->constante = 1000;
+      cauda->constante = 10;
     }
   }
 

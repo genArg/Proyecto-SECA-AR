@@ -12,6 +12,7 @@ MCUFRIEND_kbv tft;
 #include "tiempo.h"
 #include "presion.h"
 #include "tarjetaSD.h"
+#include "eeprom_m.h"
 
 #define PULSE_INT ((a_pulse == 0) && (b_pulse == 1))
 
@@ -57,7 +58,7 @@ char buffer[20];
 //Para la modificacion de los parametros
 const char* medidores[6] = { "Gen", "Nivel", "Presion", "Caudal", "Tiempo", "Memoria" };
 
-const char* param_gen[1] = { "Color" };
+const char* param_gen[2] = { "Color", "Param_mem" };
 const char* param_nivel[6] = { "Constante", "I min", "I MAX", "Ress", "Val min", "Val MAX" };
 const char* param_presion[6] = { "Constante", "I min", "I MAX", "Ress", "Pre min", "Pre MAX" };
 const char* param_caudal[3] = { "Constante", "In 1", "In 2" };
@@ -67,7 +68,7 @@ const char* param_memoria[3] = { "Habilitado", "Codigo", "Intervalo" };
 const char** parametros[6] = { param_gen, param_nivel, param_presion, param_caudal, param_tiempo, param_memoria };
 
 // Tamaños
-uint16_t Zise[6] = { 1, 6, 6, 3, 5, 3 };
+uint16_t Zise[6] = { 2, 6, 6, 3, 5, 3 };
 uint16_t indice_medidor = 0;
 uint16_t indice_parametro = 0;
 
@@ -156,13 +157,32 @@ volatile byte tick = 1;
 #define CLINT 19
 //*/
 //--------------------------------------------------------------------------------------------------------------------
-uint8_t color_pantalla = 0;  // cambia la pantalla entre ocuro y claro
-uint16_t valor_aux;          // varibale de pruebas
-byte state = false;          // para la prueba de la interrupcion del rtc
+//uint8_t color_pantalla = 0;  // cambia la pantalla entre ocuro y claro
+//uint8_t eeprom_activo = 0;   //
+uint16_t valor_aux;  // varibale de pruebas
+byte state = false;  // para la prueba de la interrupcion del rtc
 int contador_rtc = 0;
 
+//--------------------------------------------------------------------------------------------------------------------
+gen_t gen;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
+  //--------------------------------------------------------------------------------------------------------------------
+  // objetos del codigo
+  gen = InicializarGen();  // estructura para variables con valores que se guardan en eeprom
+  nivel_alto = InicializarManometro();
+  nivel_bajo = InicializarManometro();
+  manometro_1 = InicializarManometro();
+  caudalimetro_1 = InicializarCaudal();
+  caudalimetro_2 = InicializarCaudal();
+  reloj_1 = InicializarReloj();
+  tarjeta_1 = InicializarTarjeta();
+
+  //--------------------------------------------------------------------------------------------------------------------
+  if (EEPROM.read(GEN_PARAM_MEM)) {
+    ActualizarDatos(gen, nivel_alto, nivel_bajo, manometro_1, caudalimetro_1, caudalimetro_2);  // actualiza dotos dese eeprom
+  }
+
 
 #if DEBUG == TRUE
   Serial.begin(9600);
@@ -213,16 +233,7 @@ void setup() {
   tft.fillScreen(WHITE);          // Rellena la pantalla de blanco
   pant = 0;
   Pantalla_1();
-
-  //--------------------------------------------------------------------------------------------------------------------
-  // objetos del codigo
-  nivel_alto = InicializarManometro();
-  nivel_bajo = InicializarManometro();
-  manometro_1 = InicializarManometro();
-  caudalimetro_1 = InicializarCaudal();
-  caudalimetro_2 = InicializarCaudal();
-  reloj_1 = InicializarReloj();
-  tarjeta_1 = InicializarTarjeta();
+  tft.invertDisplay(gen->color_pantalla);
 
   //--------------------------------------------------------------------------------------------------------------------
   //apaga el compresor
@@ -237,18 +248,6 @@ void setup() {
   myRTC.setClockMode(mode12);  // uploads 'true' (1) to bit 6 of register 0x02
   CopiarDate();                // carga la fecha del RTC a reloj_1
   IntRTC();                    // Configura la interrupcion desde el rtc
-
-  //--------------------------------------------------------------------------------------------------------------------
-  //inicia conexion con el sd
-  if (tarjeta_1->activo) {
-#if SD_ACTIVE == TRUE
-    if (AbrirSD(tarjeta_1)) {
-      tarjeta_1->activo = 1;
-    } else {
-      tarjeta_1->activo = 0;
-    }
-#endif
-  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -410,7 +409,7 @@ void FnCallback() {
   //--------------------------------------------------------------------------------------------------------------------
   // timer para contar 10 seg despues de iniciar el compresor
   if (bit_compresor) {
-    timer_compresor = (timer_compresor + 1) % TIME_10S;
+    timer_compresor = (timer_compresor + 1) % (TIME_10S);
   }
   if (timer_compresor == 0) {
     bit_segundos_compresor = 1;
@@ -456,12 +455,12 @@ void GuardarDatos() {
   myFile = SD.open(tarjeta_1->nombre_file, FILE_WRITE);
   if (myFile) {
     myFile.print(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year) + ", ");         // fecha
-    myFile.print(String(reloj_1->hora) + "/" + String(reloj_1->minuto) + "/" + String(reloj_1->segundo) + ", ");  // hora                                                                        // hora
+    myFile.print(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo) + ", ");  // hora                                                                        // hora
     myFile.print(String(manometro_1->presion_media) + ", ");                                                      // presion
     myFile.print(String(caudal_media) + ", ");                                                                    // caudal
     myFile.print(String(nivel_alto->presion_media) + ", ");                                                       // nivel estatico
     myFile.print(String(nivel_bajo->presion_media) + ", ");                                                       // nivel Dinamico
-    myFile.println(String(caudal_especifico) + ", ");                                                             // Caudal especifico
+    myFile.println(String(caudal_especifico));                                                                    // Caudal especifico
     myFile.close();                                                                                               // Cerramos el archivo
 #if DEBUG == TRUE
     Serial.println("TERMINO ESCRITURA");
@@ -925,7 +924,14 @@ float ObtenerParametro() {
 
   switch (indice_medidor) {
     case 0:  // General
-      auxiliar = color_pantalla;
+      switch (indice_parametro) {
+        case 0:  // constante
+          auxiliar = gen->color_pantalla;
+          break;
+        case 1:  // constante
+          auxiliar = gen->eeprom_activo;
+          break;
+      }
       break;
     case 1:  // nivel
       switch (indice_parametro) {
@@ -1051,8 +1057,18 @@ void GuardarParametro(uint16_t valor) {
 
   switch (indice_medidor) {
     case 0:  // General
-      color_pantalla = valor;
-      tft.invertDisplay(color_pantalla);
+
+      switch (indice_parametro) {
+        case 0:  // constante
+          EEPROM.update(GEN_COLOR, valor);
+          gen->color_pantalla = valor;
+          tft.invertDisplay(gen->color_pantalla);
+          break;
+        case 1:  // constante
+          EEPROM.update(GEN_PARAM_MEM, valor);
+          gen->eeprom_activo = valor;
+          break;
+      }
       break;
     case 1:  // nivel
       switch (indice_parametro) {
@@ -1169,19 +1185,21 @@ void GuardarParametro(uint16_t valor) {
         case 0:  // habilitar
           if (valor) {
             if (AbrirSD(tarjeta_1)) {
-              tarjeta_1->activo = 1;
-            } else {
-              tarjeta_1->activo = 0;
+              IniciarDocumento(tarjeta_1);
             }
           } else {
             tarjeta_1->activo = 0;
           }
           break;
         case 1:  // codigo
-          tarjeta_1->codigo = valor;
+          if (valor) {
+            tarjeta_1->codigo = valor;
+          }
           break;
         case 2:  // tiempo
-          tarjeta_1->tiempo = valor;
+          if (valor) {
+            tarjeta_1->tiempo = valor;
+          }
           break;
         default:
 

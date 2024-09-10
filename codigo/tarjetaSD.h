@@ -14,7 +14,7 @@ extern "C" {
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Estructra
   struct tarjeta_s {
-    uint8_t codigo;
+    uint16_t codigo;
     uint8_t activo;
     uint32_t tiempo;
     char nombre_file[20];
@@ -42,13 +42,12 @@ extern "C" {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int AbrirSD(tarjeta_t tarjeta) {
   // Deshabilita todas las interrupciones
-  noInterrupts();
+  //noInterrupts();
   int auxiliar;
 #if DEBUG == TRUE
   Serial.print("Initializing SD card...");
 #endif
   for (int i = 0; i < INTENTOS; i++) {
-    sprintf(tarjeta->nombre_file, "%d.csv", tarjeta->codigo);
     if (!SD.begin(PIN_CS)) {
       tarjeta->activo = 0;
 #if DEBUG == TRUE
@@ -58,6 +57,7 @@ int AbrirSD(tarjeta_t tarjeta) {
     } else {
       tarjeta->activo = 1;
       auxiliar = 1;
+      sprintf(tarjeta->nombre_file, "%d.txt", tarjeta->codigo);
       break;
     }
   }
@@ -66,14 +66,14 @@ int AbrirSD(tarjeta_t tarjeta) {
   Serial.println("initialization done.");
 #endif
   // Habilita todas las interrupciones
-  interrupts();
+  //interrupts();
   return auxiliar;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void IniciarDocumento(tarjeta_t tarjeta) {
   // Habilita todas las interrupciones
-  interrupts();
+  //interrupts();
   File myFile;
   myFile = SD.open(tarjeta->nombre_file, FILE_WRITE);
   if (myFile) {
@@ -95,7 +95,7 @@ void IniciarDocumento(tarjeta_t tarjeta) {
 #endif
   }
   // Habilita todas las interrupciones
-  interrupts();
+  //interrupts();
   return;
 }
 

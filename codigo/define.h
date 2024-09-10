@@ -82,6 +82,41 @@ extern "C" {
 #define TIME_INT_C1 (5 * TIME_100MS)
 #define TIME_INT_C2 (5 * TIME_100MS)
 
+//! direcciones eeprom
+//Gen
+#define GEN_COLOR (0)
+#define GEN_PARAM_MEM (1)
+#define GEN_PARAM_TEMPORAL (2)
+
+//Nivel
+#define NIV_CONSTANTE (10)
+#define NIV_I_MIN (11)
+#define NIV_I_MAX (12)
+#define NIV_RESITENCIA (13)  //---->>>>>>>>>> POSIBLEMENTE NECESITE 16 BITS
+#define NIV_VAL_MIN (14)
+#define NIV_VAL_MAX (15)  //---->>>>>>>>>> POSIBLEMENTE NECESITE 16 
+#define NIV_MULTIPLICADOR (16)
+#define NIV_SUMADOR (17)
+//Presion
+#define PRESION_CONSTANTE (20)
+#define PRESION_I_MIN (21)
+#define PRESION_I_MAX (22)
+#define PRESION_RESISTENCIA (23)
+#define PRESION_PRE_MIN (24)
+#define PRESION_PRE_MAX (25)
+#define PRESION_MULTIPLICADOR (26)
+#define PRESION_SUMADOR (27)
+//Caudal
+#define CAUDAL_CONSTANTE (30)
+#define CAUDAL_ENTRADA_1 (31)
+#define CAUDAL_ENTRADA_2 (32)
+//Memoria SD
+#define MEMORIA_HABILITADA (50)
+#define MEMORIA_CODIGO (51)
+#define MEMORIA_INTERVALO (52)
+#define MEMORIA_MULTIPLICADOR (53)
+#define MEMORIA_SUMADOR (54)
+
 #ifdef __cplusplus
 }
 #endif
