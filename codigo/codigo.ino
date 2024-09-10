@@ -157,8 +157,6 @@ volatile byte tick = 1;
 #define CLINT 19
 //*/
 //--------------------------------------------------------------------------------------------------------------------
-//uint8_t color_pantalla = 0;  // cambia la pantalla entre ocuro y claro
-//uint8_t eeprom_activo = 0;   //
 uint16_t valor_aux;  // varibale de pruebas
 byte state = false;  // para la prueba de la interrupcion del rtc
 int contador_rtc = 0;
@@ -211,12 +209,6 @@ void setup() {
   pin_estado_c1 = digitalRead(INTERRUPCION_C1);
   pin_estado_c2 = digitalRead(INTERRUPCION_C2);
 
-  // Habilitar la interrupción en el pin 21
-  // attachInterrupt(digitalPinToInterrupt(pin), ISR, mode)
-  // mode puede ser: LOW, CHANGE, RISING, FALLING, HIGH
-  //attachInterrupt(digitalPinToInterrupt(INTERRUPCION_PULSE), ISR_Pin, CHANGE);
-  //attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C1), ISR_Pin, CHANGE);
-  //attachInterrupt(digitalPinToInterrupt(INTERRUPCION_C2), ISR_Pin, CHANGE);
   a_pulse = 1;
   a_c1 = 1;
   a_c2 = 1;
@@ -1060,13 +1052,11 @@ void GuardarParametro(uint16_t valor) {
 
       switch (indice_parametro) {
         case 0:  // constante
-          EEPROM.update(GEN_COLOR, valor);
-          gen->color_pantalla = valor;
+          gen->color_pantalla = (uint8_t)valor;
           tft.invertDisplay(gen->color_pantalla);
           break;
         case 1:  // constante
-          EEPROM.update(GEN_PARAM_MEM, valor);
-          gen->eeprom_activo = valor;
+          gen->eeprom_activo = (uint8_t)valor;
           break;
       }
       break;
@@ -1209,6 +1199,11 @@ void GuardarParametro(uint16_t valor) {
     default:
 
       break;
+  }
+  if(gen->eeprom_activo){
+    GuardarDatos(gen, nivel_alto, nivel_bajo, manometro_1, caudalimetro_1, caudalimetro_2);
+  } else{
+    EEPROM.update(GEN_PARAM_MEM, gen->eeprom_activo);
   }
 }
 

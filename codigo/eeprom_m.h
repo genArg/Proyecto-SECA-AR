@@ -22,23 +22,8 @@ extern "C" {
   // carga los datos desde la eeprom a programa
   bool ActualizarDatos(gen_t gen, manometro_t nivel_alto, manometro_t nivel_bajo, manometro_t manometro_1, caudalimetro_t caudalimetro_1, caudalimetro_t caudalimetro_2);
 
-  // guarda valores de caudalimetros
-  bool GuardarEepromCaudal(caudalimetro_t caudalimetro_1, caudalimetro_t caudalimetro_2);
-
-  // guarda valores de transmisor de presion
-  bool GuardarEepromPresion(manometro_t manometro_1);
-
-  // guarda valores de memoria SD
-  bool GuardarEepromTarjetaSD(tarjeta_t tarjeta_1);
-
-  // guarda valores de gen
-  bool GuardarEepromGen(gen_t gen, uint8_t valor);
-
-  // Lee valores de gen
-  uint32_t LeerEepromGen(gen_t gen);
-
-  //guarda valores de nivel
-  bool GuardarEepromNivel(manometro_t nivel_alto, manometro_t nivel_bajo);
+  // guarda valores en la memoria eeprom actuales
+  bool GuardarDatos(gen_t gen, manometro_t nivel_alto, manometro_t nivel_bajo, manometro_t manometro_1, caudalimetro_t caudalimetro_1, caudalimetro_t caudalimetro_2);
 
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -58,9 +43,17 @@ extern "C" {
   // carga los datos desde la eeprom a programa
   bool ActualizarDatos(gen_t gen, manometro_t nivel_alto, manometro_t nivel_bajo, manometro_t manometro_1, caudalimetro_t caudalimetro_1, caudalimetro_t caudalimetro_2) {
     gen->color_pantalla = EEPROM.read(GEN_COLOR);
+    gen->eeprom_activo = EEPROM.read(GEN_PARAM_MEM);
     return 1;
   }
 
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // carga los datos desde la eeprom a programa
+  bool GuardarDatos(gen_t gen, manometro_t nivel_alto, manometro_t nivel_bajo, manometro_t manometro_1, caudalimetro_t caudalimetro_1, caudalimetro_t caudalimetro_2) {
+    EEPROM.update(GEN_COLOR, gen->color_pantalla);
+    EEPROM.update(GEN_PARAM_MEM, gen->eeprom_activo);
+    return 1;
+  }
 
 
 #ifdef __cplusplus
