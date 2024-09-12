@@ -13,6 +13,7 @@ extern "C" {
 #define TRUE (1)
 #define FALSE (0)
 #define DEBUG TRUE
+#define DEBUG_DATOS FALSE
 #define DEBUG_RTC FALSE
 #define DEBUG_RTC_2 TRUE
 
@@ -40,9 +41,10 @@ extern "C" {
 #define INTERRUPCION_C1 (29)                       // pin de interrupcion
 #define INTERRUPCION_C2 (33)                       // pin de interrupcion
 #define LEER_ENTRADA digitalRead(INTERRUPCION_C1)  //!> bsp //--------------------------------------------------------->
-#define NUMB_ELEMENTS 5                            // numero de elementos del vector
+#define NUMB_ELEMENTS 2                            // numero de elementos del vector
 #define CAUDAL_MINIMO 0                            //caudal minimo como filtro
 #define SEGUNDO_POR_HORA (3600)                    //3600
+#define CAUDA_TIEMPO_MAXIMO (30)                   //en segundo
 
 //! definiciones del codigo de tiempo
 #define DIA 28
@@ -94,7 +96,7 @@ extern "C" {
 #define NIV_I_MAX (12)
 #define NIV_RESITENCIA (13)  //---->>>>>>>>>> POSIBLEMENTE NECESITE 16 BITS
 #define NIV_VAL_MIN (14)
-#define NIV_VAL_MAX (15)  //---->>>>>>>>>> POSIBLEMENTE NECESITE 16 
+#define NIV_VAL_MAX (15)  //---->>>>>>>>>> POSIBLEMENTE NECESITE 16
 #define NIV_MULTIPLICADOR (16)
 #define NIV_SUMADOR (17)
 //Presion
@@ -110,12 +112,21 @@ extern "C" {
 #define CAUDAL_CONSTANTE (30)
 #define CAUDAL_ENTRADA_1 (31)
 #define CAUDAL_ENTRADA_2 (32)
+#define CAUDAL_MULTIPLICADOR (33)
+#define CAUDAL_SUMADOR (34)
 //Memoria SD
 #define MEMORIA_HABILITADA (50)
 #define MEMORIA_CODIGO (51)
 #define MEMORIA_INTERVALO (52)
 #define MEMORIA_MULTIPLICADOR (53)
 #define MEMORIA_SUMADOR (54)
+
+#define VALOR_UNIVERSAL_DIR (420)
+#define VALOR_UNIVERSAL (250)
+#define VALOR_UNIVERSAL_DIA_DIR (421)
+#define VALOR_UNIVERSAL_DIA (60)
+#define CODIGO_GEN (125)
+#define VALOR_INVALIDO (999)
 
 #ifdef __cplusplus
 }

@@ -11,7 +11,7 @@ extern "C" {
   typedef struct reloj_s* reloj_t;
 
   // es el tiempo que se toma del RTC
-  uint32_t TomarTiempo(reloj_t reloj);
+  //uint32_t TomarTiempo(reloj_t reloj);
 
 //////////////////////////////////////////////////////
   //! puntero a un reloj de 1 señal

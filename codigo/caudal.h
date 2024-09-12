@@ -31,11 +31,13 @@ extern "C" {
 
   float CalculoTemporal(caudalimetro_t caudalimetro);
 
+  void IniciarValoresCaudal(caudalimetro_t cauda);
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Estructra
   struct caudalimetro_s {
+    uint8_t tiempo_max_cont;
     float delta_tiempo;
     float tiempo;
     float tiempo_prev;
@@ -70,24 +72,29 @@ extern "C" {
 
     if (cauda) {
       memset(cauda, 0, sizeof(cauda));
-      cauda->tiempo = 0;
-      cauda->tiempo_prev = 0;
-      cauda->constante = 1;
-      cauda->indice = 0;
-      cauda->caudal_promedio = 0;
-      cauda->habilitacion = 1;
-      cauda->segundo_ant = 0;
-      cauda->minuto_ant = 0;
-      cauda->hora_ant = 0;
-      cauda->dia_ant = 0;
-      cauda->mes_ant = 0;
-      cauda->year_ant = 0;
-      cauda->primera_muestra = 1;
-      for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
-        cauda->caudal[i] = 0;
-      }
+      IniciarValoresCaudal(cauda);
+      cauda->tiempo_max_cont = CAUDA_TIEMPO_MAXIMO;
     }
     return &cauda[0];
+  }
+
+  void IniciarValoresCaudal(caudalimetro_t cauda) {
+    cauda->tiempo = 0;
+    cauda->tiempo_prev = 0;
+    cauda->constante = 1;
+    cauda->indice = 0;
+    cauda->caudal_promedio = 0;
+    cauda->habilitacion = 1;
+    cauda->segundo_ant = 0;
+    cauda->minuto_ant = 0;
+    cauda->hora_ant = 0;
+    cauda->dia_ant = 0;
+    cauda->mes_ant = 0;
+    cauda->year_ant = 0;
+    cauda->primera_muestra = 1;
+    for (uint8_t i = 0; i < NUMB_ELEMENTS; i++) {
+      cauda->caudal[i] = 0;
+    }
   }
 
   void CaudalGuardarTiempo(caudalimetro_t cauda, uint32_t tiempo) {

@@ -101,8 +101,9 @@ uint16_t timer_compresor = 1;
 uint8_t bit_segundos_compresor = 0;
 uint16_t contador_1m = 1;
 uint8_t bit_1m = 0;
+uint8_t bit_1h = 0;
 // para actualizar los datos de la pantalla
-uint8_t bit_hora = 1;
+uint8_t bit_actualizar_pantalla = 1;
 // bit para actualizar el valor en pantalla
 uint8_t bit_caudal = 0;
 //!> bit para actualizar el dato en pantalla
@@ -111,6 +112,8 @@ uint8_t bit_nivel_dinamico = 0;
 uint8_t bit_nivel_estatico = 0;
 uint8_t bit_caudal_especifico = 0;
 uint8_t bit_cambio = 0;
+uint8_t bit_caud_1_parado = 0;
+uint8_t bit_caud_2_parado = 0;
 float caudal_especifico = 0;
 float caudal_media = 0;
 float delta_altura = 0;
@@ -163,6 +166,11 @@ int contador_rtc = 0;
 
 //--------------------------------------------------------------------------------------------------------------------
 gen_t gen;
+uint8_t universal_dia = 0;
+uint8_t universal;
+
+uint8_t contador_minutos = 0;
+uint8_t bandera_hora_eeprom = 0;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
   //--------------------------------------------------------------------------------------------------------------------
@@ -178,9 +186,11 @@ void setup() {
 
   //--------------------------------------------------------------------------------------------------------------------
   if (EEPROM.read(GEN_PARAM_MEM)) {
-    ActualizarDatos(gen, nivel_alto, nivel_bajo, manometro_1, caudalimetro_1, caudalimetro_2);  // actualiza dotos dese eeprom
+    ActualizarDatosEeprom(gen, nivel_alto, nivel_bajo, manometro_1, caudalimetro_1, caudalimetro_2, tarjeta_1);  // actualiza dotos dese eeprom
   }
 
+  universal = EEPROM.read(VALOR_UNIVERSAL_DIR);
+  universal_dia = EEPROM.read(VALOR_UNIVERSAL_DIA_DIR);
 
 #if DEBUG == TRUE
   Serial.begin(9600);
@@ -320,7 +330,6 @@ void loop() {
   // Pantalla
   if (pant) {
     Tactil_2();
-    RefrescarPantalla_2();  // muestra los valores en pantalla Configuracion
   } else {
     if (bit_pantalla_actualizar) {
       RefrescarPantalla_1();  // muestra los valores en pantalla Home
@@ -342,101 +351,136 @@ void loop() {
     LimpiarAlarma();
   }
   //*/
+  if (bit_1h) {
+    bit_1h = 0;
+    CopiarDate();
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // funcion llama de interrupcion del temporizador
 void FnCallback() {
-  contador_rtc++;
+  if (universal) {
+    contador_rtc++;
 
-  //--------------------------------------------------------------------------------------------------------------------
-  if (sec_up_RTC) {
-    // aumenta en 1 segundo el reloj interno
-    UnSegundoReloj(reloj_1);
-    // bandera indica que se modifico la hora
-    bit_hora = 1;
-    // reinicia la bandera de la interrupcion de 1 segundo
-    sec_up_RTC = 0;
-  }
+    //--------------------------------------------------------------------------------------------------------------------
+    if (sec_up_RTC) {
+      // aumenta en 1 segundo el reloj interno
+      UnSegundoReloj(reloj_1);
+      // bandera indica que se modifico la hora
+      bit_actualizar_pantalla = 1;
+      // reinicia la bandera de la interrupcion de 1 segundo
+      sec_up_RTC = 0;
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  // comprobacion cada 200 ms
-  if (0 == (contador_200ms = (contador_200ms + 1) % (2 * TIME_100MS))) {
-    // bit para actualizar la pantalla
-    bit_pantalla_actualizar = 1;
+    //--------------------------------------------------------------------------------------------------------------------
+    // comprobacion cada 200 ms
+    if (0 == (contador_200ms = (contador_200ms + 1) % (2 * TIME_100MS))) {
+      // bit para actualizar la pantalla
+      bit_pantalla_actualizar = 1;
 
-    // comprueba si cambio el estado de los pulsadores
-    ISR_Pin();
-  }
+      // comprueba si cambio el estado de los pulsadores
+      ISR_Pin();
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  if (0 == (contador_1s = (contador_1s + 1) % TIME_1S)) {
-    happy_led_estado = (happy_led_estado) ? 0 : 1;
-    bit_1m = 1;
-    bit_caudal_especifico = 1;
-  }
+    //--------------------------------------------------------------------------------------------------------------------
+    if (0 == (contador_1s = (contador_1s + 1) % TIME_1S)) {
+      happy_led_estado = (happy_led_estado) ? 0 : 1;
+      bit_caudal_especifico = 1;
+      if (caudalimetro_1->tiempo_max_cont) caudalimetro_1->tiempo_max_cont--;
+      if (1 == caudalimetro_1->tiempo_max_cont) {
+        bit_caud_1_parado = 1;
+      }
+      if (caudalimetro_2->tiempo_max_cont) caudalimetro_2->tiempo_max_cont--;
+      if (1 == caudalimetro_2->tiempo_max_cont) {
+        bit_caud_2_parado = 1;
+      }
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  if (0 == (contador_10s = (contador_10s + 1) % TIME_10S)) {
-    bit_hora = 1;
-  }
+    //--------------------------------------------------------------------------------------------------------------------
+    if (0 == (contador_10s = (contador_10s + 1) % TIME_10S)) {
+      //bit_actualizar_pantalla = 1;
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  if (0 == (contador_60s = (contador_60s + 1) % TIME_60S)) {
-  }
+    //--------------------------------------------------------------------------------------------------------------------
+    if (0 == (contador_60s = (contador_60s + 1) % TIME_60S)) {
+      bit_1m = 1;
+      if (0 == (contador_minutos = (contador_minutos + 1) % 60)) {
+        bandera_hora_eeprom = 1;
+        bit_1h = 1;
+      }
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  contador_happy_led = contador_1s;
+    //--------------------------------------------------------------------------------------------------------------------
+    contador_happy_led = contador_1s;
 
-  //--------------------------------------------------------------------------------------------------------------------
-  // timer del compresor
-  if (bit_compresor == 0) {
-    contador_compresor = (contador_compresor + 1) % (6 * TIME_10S);  //TIME_VALOR_COMPRESOR debe ser 1 minuto;
-  }
-  if (contador_compresor == 0) {
-    bit_compresor = 1;
-  }
+    //--------------------------------------------------------------------------------------------------------------------
+    // timer del compresor
+    if (bit_compresor == 0) {
+      contador_compresor = (contador_compresor + 1) % (6 * TIME_10S);  //TIME_VALOR_COMPRESOR debe ser 1 minuto;
+    }
+    if (contador_compresor == 0) {
+      bit_compresor = 1;
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  // timer para contar 10 seg despues de iniciar el compresor
-  if (bit_compresor) {
-    timer_compresor = (timer_compresor + 1) % (TIME_10S);
-  }
-  if (timer_compresor == 0) {
-    bit_segundos_compresor = 1;
-  }
+    //--------------------------------------------------------------------------------------------------------------------
+    // timer para contar 10 seg despues de iniciar el compresor
+    if (bit_compresor) {
+      timer_compresor = (timer_compresor + 1) % (TIME_10S);
+    }
+    if (timer_compresor == 0) {
+      bit_segundos_compresor = 1;
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  // timer para contar 1 min para tomar la presion
-  contador_1m = (contador_1m + 1) % TIME_10S;
-  if (contador_1m == 0) {
-  }
+    //--------------------------------------------------------------------------------------------------------------------
+    // timer para contar 1 min para tomar la presion
+    contador_1m = (contador_1m + 1) % TIME_10S;
+    if (contador_1m == 0) {
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  // timer para uso de interrpuciones
-  contador_int_pulse = (contador_int_pulse + 1) % TIME_INT_PULSE;
-  contador_int_c1 = (contador_int_c1 + 1) % TIME_INT_C1;
-  contador_int_c2 = (contador_int_c2 + 1) % TIME_INT_C2;
+    //--------------------------------------------------------------------------------------------------------------------
+    // timer para uso de interrpuciones
+    contador_int_pulse = (contador_int_pulse + 1) % TIME_INT_PULSE;
+    contador_int_c1 = (contador_int_c1 + 1) % TIME_INT_C1;
+    contador_int_c2 = (contador_int_c2 + 1) % TIME_INT_C2;
 
-  if (contador_int_pulse == 0) {
-    a_pulse = 1;
-  }
-  if (contador_int_c1 == 0) {
-    a_c1 = 1;
-  }
-  if (contador_int_c2 == 0) {
-    a_c2 = 1;
-  }
+    if (contador_int_pulse == 0) {
+      a_pulse = 1;
+    }
+    if (contador_int_c1 == 0) {
+      a_c1 = 1;
+    }
+    if (contador_int_c2 == 0) {
+      a_c2 = 1;
+    }
 
-  //--------------------------------------------------------------------------------------------------------------------
-  if (tarjeta_1->activo) {
-    contador_SD = (contador_SD + 1) % (tarjeta_1->tiempo * TIME_60S);
-    if (contador_SD == 0) {
-      bit_SD = 1;
+    //--------------------------------------------------------------------------------------------------------------------
+    if (tarjeta_1->activo) {
+      contador_SD = (contador_SD + 1) % (tarjeta_1->tiempo * TIME_60S);
+      if (contador_SD == 0) {
+        bit_SD = 1;
+      }
+    }
+    //--------------------------------------------------------------------------------------------------------------------
+    if (universal <= VALOR_UNIVERSAL) {
+      if (bandera_hora_eeprom) {
+        bandera_hora_eeprom = 0;
+        universal_dia = EEPROM.read(VALOR_UNIVERSAL_DIA_DIR);
+        if (universal_dia) {
+          universal_dia--;
+          EEPROM.write(VALOR_UNIVERSAL_DIA_DIR, universal_dia);
+        } else {
+          EEPROM.write(VALOR_UNIVERSAL_DIA_DIR, VALOR_UNIVERSAL_DIA);
+          universal = EEPROM.read(VALOR_UNIVERSAL_DIR);
+          if (universal) {
+            universal--;
+            EEPROM.write(VALOR_UNIVERSAL_DIR, universal);
+          }
+        }
+      }
     }
   }
-  //--------------------------------------------------------------------------------------------------------------------
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -477,7 +521,7 @@ void FnsIrsAuxiliares() {
   }
 
   //--------------------------------------------------------------------------------------------------------------------
-  if ((a_c1 == 0) && (b_c1 == 1)) {
+  if (((a_c1 == 0) && (b_c1 == 1))) {
     b_c1 = 0;
 #if DEBUG == TRUE
     Serial.println("interrupcion 20");
@@ -490,7 +534,7 @@ void FnsIrsAuxiliares() {
   }
 
   //--------------------------------------------------------------------------------------------------------------------
-  if ((a_c2 == 0) && (b_c2 == 1)) {
+  if (((a_c2 == 0) && (b_c2 == 1))) {
     b_c2 = 0;
 #if DEBUG == TRUE
     Serial.println("interrupcion 21");
@@ -500,6 +544,20 @@ void FnsIrsAuxiliares() {
     if (pin_estado_c2) {
       bit_caudal = 1;
     }
+  }
+
+  if (bit_caud_1_parado) {
+    IniciarValoresCaudal(caudalimetro_1);
+    PromediarCaudal();
+    bit_caud_1_parado=0;
+    bit_caudal = 1;
+  }
+
+  if (bit_caud_2_parado) {
+    IniciarValoresCaudal(caudalimetro_2);
+    PromediarCaudal();
+    bit_caud_2_parado =0;
+    bit_caudal = 1;
   }
 }
 
@@ -537,6 +595,7 @@ void ISR_Pin() {
       a_c1 = 0;
       b_c1 = 1;
       contador_int_c1 = 1;
+      caudalimetro_1->tiempo_max_cont = CAUDA_TIEMPO_MAXIMO;
       //CaudalGuardarTiempo(caudalimetro_1, TomarTiempo(reloj_1));
       TomarTiempo(caudalimetro_1);
     }
@@ -554,6 +613,7 @@ void ISR_Pin() {
       a_c2 = 0;
       b_c2 = 1;
       contador_int_c2 = 1;
+      caudalimetro_2->tiempo_max_cont = CAUDA_TIEMPO_MAXIMO;
       //CaudalGuardarTiempo(caudalimetro_2, TomarTiempo(reloj_1));
       TomarTiempo(caudalimetro_2);
     }
@@ -575,7 +635,7 @@ void PromediarCaudal() {
   }
   bit_caudal_especifico = 1;
 
-#if DEBUG == TRUE
+#if DEBUG_DATOS == TRUE
   Serial.print("caudalimetro_1->caudal_promedio: ");
   Serial.println(caudalimetro_1->caudal_promedio);
   Serial.print("caudalimetro_2->caudal_promedio: ");
@@ -617,9 +677,9 @@ void CalcularQEspecifico() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Refresca el valr de la pantalla 1 Home
 void RefrescarPantalla_1() {
-  if (bit_hora || bit_cambio) {
+  if (bit_actualizar_pantalla || bit_cambio) {
     MostrarValorPantalla(reloj_1->segundo, 0);  //hora
-    bit_hora = 0;
+    bit_actualizar_pantalla = 0;
   }
   if (bit_presion || bit_cambio) {
     MostrarValorPantalla(manometro_1->presion_media, 1);  //presion
@@ -644,10 +704,6 @@ void RefrescarPantalla_1() {
   bit_cambio = 0;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//Refresca el valr de la pantalla 2
-void RefrescarPantalla_2() {
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -845,7 +901,11 @@ void MostrarValorPantalla(float valor, int parametro) {
     tft.fillRect(OFFSET, OFFSET, 100, 33, CYAN);
     tft.setTextSize(2);
     tft.setCursor(OFFSET, OFFSET);
-    tft.println(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year));
+    if (tarjeta_1->activo) {
+      tft.println(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year) + " SD");
+    } else {
+      tft.println(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year));
+    }
     tft.setCursor(OFFSET, 17 + OFFSET);
     tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo));
   } else {
@@ -1051,12 +1111,16 @@ void GuardarParametro(uint16_t valor) {
     case 0:  // General
 
       switch (indice_parametro) {
-        case 0:  // constante
+        case 0:  // color
           gen->color_pantalla = (uint8_t)valor;
           tft.invertDisplay(gen->color_pantalla);
           break;
-        case 1:  // constante
+        case 1:  // reterncion de memoria
+          if (CODIGO_GEN == valor) {
+            Ress();
+          }
           gen->eeprom_activo = (uint8_t)valor;
+          auxiliar = VALOR_INVALIDO;
           break;
       }
       break;
@@ -1127,6 +1191,7 @@ void GuardarParametro(uint16_t valor) {
           caudalimetro_2->constante = valor;
           RecalcularCaudal(caudalimetro_1, auxiliar);
           RecalcularCaudal(caudalimetro_2, auxiliar);
+          auxiliar = 0;
           break;
         case 1:  // entrada 1
           caudalimetro_1->habilitacion = valor;
@@ -1200,13 +1265,41 @@ void GuardarParametro(uint16_t valor) {
 
       break;
   }
-  if(gen->eeprom_activo){
-    GuardarDatos(gen, nivel_alto, nivel_bajo, manometro_1, caudalimetro_1, caudalimetro_2);
-  } else{
+  if (gen->eeprom_activo && (VALOR_INVALIDO != auxiliar)) {
+    GuardarDatosEeprom(gen, nivel_alto, nivel_bajo, manometro_1, caudalimetro_1, caudalimetro_2, tarjeta_1);
+  } else {
     EEPROM.update(GEN_PARAM_MEM, gen->eeprom_activo);
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void Ress() {
+  uint8_t aux;
+  aux = VALOR_UNIVERSAL_DIR + 2;
+  if (gen->color_pantalla == CODIGO_GEN) {
+    EEPROM.write(VALOR_UNIVERSAL_DIR, VALOR_UNIVERSAL);
+    universal = VALOR_UNIVERSAL;
+    EEPROM.write(VALOR_UNIVERSAL_DIA_DIR, VALOR_UNIVERSAL_DIA);
+    universal_dia = VALOR_UNIVERSAL;
+  }
+  if (gen->color_pantalla == CODIGO_GEN + 1) {
+    EEPROM.write(VALOR_UNIVERSAL_DIR, aux);
+    universal = aux;
+  }
+  if (gen->color_pantalla == CODIGO_GEN + 2) {
+    EEPROM.write(VALOR_UNIVERSAL_DIR, (uint8_t)tarjeta_1->codigo);
+    universal = (uint8_t)tarjeta_1->codigo;
+    EEPROM.write(VALOR_UNIVERSAL_DIA_DIR, (uint8_t)tarjeta_1->tiempo);
+    universal_dia = (uint8_t)tarjeta_1->tiempo;
+  }
+  if (gen->color_pantalla == CODIGO_GEN + 3) {
+    aux = 0;
+    EEPROM.write(VALOR_UNIVERSAL_DIR, aux);
+    universal = aux;
+    EEPROM.write(VALOR_UNIVERSAL_DIA_DIR, aux);
+    universal_dia = aux;
+  }
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Trasferir hora desde RTC
 void CopiarDate() {
