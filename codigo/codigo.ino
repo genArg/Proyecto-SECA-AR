@@ -549,14 +549,14 @@ void FnsIrsAuxiliares() {
   if (bit_caud_1_parado) {
     IniciarValoresCaudal(caudalimetro_1);
     PromediarCaudal();
-    bit_caud_1_parado=0;
+    bit_caud_1_parado = 0;
     bit_caudal = 1;
   }
 
   if (bit_caud_2_parado) {
     IniciarValoresCaudal(caudalimetro_2);
     PromediarCaudal();
-    bit_caud_2_parado =0;
+    bit_caud_2_parado = 0;
     bit_caudal = 1;
   }
 }
@@ -907,7 +907,11 @@ void MostrarValorPantalla(float valor, int parametro) {
       tft.println(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year));
     }
     tft.setCursor(OFFSET, 17 + OFFSET);
-    tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo));
+    if (gen->eeprom_activo) {
+      tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo) + "    M");
+    } else {
+      tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo));
+    }
   } else {
     tft.fillRect(OFFSET + 1 * btn_width, OFFSET + (parametro)*btn_height, 70, 33, CYAN);
     tft.setCursor(OFFSET + 1 * btn_width, OFFSET + (parametro)*btn_height);
