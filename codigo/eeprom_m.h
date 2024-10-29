@@ -15,6 +15,7 @@ extern "C" {
     uint8_t color_pantalla;  // cambia la pantalla entre ocuro y claro
     uint8_t eeprom_activo;
     uint32_t parametro_temporal;
+    uint8_t automatico;
   };
   // genera la estructura inicila de variables
   gen_t InicializarGen();
@@ -34,6 +35,7 @@ extern "C" {
       gen->color_pantalla = 0;
       gen->eeprom_activo = 0;
       gen->parametro_temporal = 0;
+      gen->automatico = 1;
     }
 
     return &gen[0];
@@ -45,6 +47,7 @@ extern "C" {
     // Del menu gen
     gen->color_pantalla = EEPROM.read(GEN_COLOR);
     gen->eeprom_activo = EEPROM.read(GEN_PARAM_MEM);
+    gen->automatico = EEPROM.read(GEN_AUTOMATICO);
 
     // Del menu nivel
     uint8_t aux_mult = EEPROM.read(NIV_MULTIPLICADOR);
@@ -67,6 +70,9 @@ extern "C" {
 
     nivel_alto->presion_max = EEPROM.read(NIV_VAL_MAX) * aux_mult + aux_sum;
     nivel_bajo->presion_max = EEPROM.read(NIV_VAL_MAX) * aux_mult + aux_sum;
+
+    nivel_alto->intervalo_nivel = EEPROM.read(NIV_INTERVALO) * aux_mult + aux_sum;
+    nivel_bajo->intervalo_nivel = EEPROM.read(NIV_INTERVALO) * aux_mult + aux_sum;
 
     // Del menu presion
     aux_mult = EEPROM.read(PRESION_MULTIPLICADOR);
@@ -105,6 +111,7 @@ extern "C" {
     // Del menu gen
     EEPROM.update(GEN_COLOR, gen->color_pantalla);
     EEPROM.update(GEN_PARAM_MEM, gen->eeprom_activo);
+    EEPROM.update(GEN_AUTOMATICO, gen->automatico);
 
     uint8_t aux_mult = 1;
     uint8_t aux_sum = 0;
@@ -117,6 +124,7 @@ extern "C" {
     EEPROM.update(NIV_RESITENCIA, nivel_alto->resistencia);
     EEPROM.update(NIV_VAL_MIN, nivel_alto->presion_min);
     EEPROM.update(NIV_VAL_MAX, nivel_alto->presion_max);
+    EEPROM.update(NIV_INTERVALO, nivel_alto->intervalo_nivel);
     EEPROM.update(NIV_MULTIPLICADOR, aux_mult);
     EEPROM.update(NIV_SUMADOR, aux_sum);
 

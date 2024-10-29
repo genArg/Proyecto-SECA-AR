@@ -44,6 +44,7 @@ struct manometro_s {
   float adc_min;           //!> no se parametriza, se calcula automaticamente
   float adc_max;           //!> no se parametriza, se calcula automaticamente
   float pendiente;         //!> no se parametriza, se calcula automaticamente
+  uint8_t intervalo_nivel; //!> guarda intervalo en minutos para iniciar la toma de presion
 };
 
 manometro_t InicializarManometro() {
@@ -59,6 +60,7 @@ manometro_t InicializarManometro() {
     man->resistencia = 250;
     man->presion_min = 0;
     man->presion_max = 100;
+    man->intervalo_nivel = 5;
     man->tension_min = (man->corriente_min * man->resistencia) / 1000;
     man->tension_max = (man->corriente_max * man->resistencia) / 1000;
     man->adc_min = CUENTAS_ADC * man->tension_min / TENSION_ADC;

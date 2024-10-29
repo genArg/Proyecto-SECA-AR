@@ -58,8 +58,8 @@ char buffer[20];
 //Para la modificacion de los parametros
 const char* medidores[6] = { "Gen", "Nivel", "Presion", "Caudal", "Tiempo", "Memoria" };
 
-const char* param_gen[2] = { "Color", "Param_mem" };
-const char* param_nivel[6] = { "Constante", "I min", "I MAX", "Ress", "Val min", "Val MAX" };
+const char* param_gen[3] = { "Automatico", "ROM", "Color" };
+const char* param_nivel[7] = { "Constante", "I min", "I MAX", "Ress", "Val min", "Val MAX", "Intervalo" };
 const char* param_presion[6] = { "Constante", "I min", "I MAX", "Ress", "Pre min", "Pre MAX" };
 const char* param_caudal[3] = { "Constante", "In 1", "In 2" };
 const char* param_tiempo[5] = { "Minuto", "Hora", "Dia", "Mes", "Year" };
@@ -68,7 +68,7 @@ const char* param_memoria[3] = { "Habilitado", "Codigo", "Intervalo" };
 const char** parametros[6] = { param_gen, param_nivel, param_presion, param_caudal, param_tiempo, param_memoria };
 
 // Tamaños
-uint16_t Zise[6] = { 2, 6, 6, 3, 5, 3 };
+uint16_t Zise[6] = { 3, 7, 6, 3, 5, 3 };
 uint16_t indice_medidor = 0;
 uint16_t indice_parametro = 0;
 
@@ -171,6 +171,7 @@ uint8_t universal;
 
 uint8_t contador_minutos = 0;
 uint8_t bandera_hora_eeprom = 0;
+//uint8_t intervalo_nivel = 15;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
   //--------------------------------------------------------------------------------------------------------------------
@@ -417,8 +418,8 @@ void FnCallback() {
 
     //--------------------------------------------------------------------------------------------------------------------
     // timer del compresor
-    if (bit_compresor == 0) {
-      contador_compresor = (contador_compresor + 1) % (6 * TIME_10S);  //TIME_VALOR_COMPRESOR debe ser 1 minuto;
+    if (bit_compresor == 0 && gen->automatico == 1) {
+      contador_compresor = (contador_compresor + 1) % (nivel_alto->intervalo_nivel * TIME_60S);  //TIME_VALOR_COMPRESOR debe ser 1 minuto;
     }
     if (contador_compresor == 0) {
       bit_compresor = 1;
@@ -435,7 +436,7 @@ void FnCallback() {
 
     //--------------------------------------------------------------------------------------------------------------------
     // timer para contar 1 min para tomar la presion
-    contador_1m = (contador_1m + 1) % TIME_10S;
+    contador_1m = (contador_1m + 1) % (6 * TIME_10S);
     if (contador_1m == 0) {
     }
 
@@ -898,20 +899,31 @@ void MostrarValorPantalla(float valor, int parametro) {
   int btn_height = tft.height() / 6;
   tft.setTextColor(BLACK);
   if (parametro == 0) {
-    tft.fillRect(OFFSET, OFFSET, 100, 33, CYAN);
+    tft.fillRect(OFFSET, OFFSET, 150, 33, CYAN);
     tft.setTextSize(2);
     tft.setCursor(OFFSET, OFFSET);
+    tft.print(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year));
     if (tarjeta_1->activo) {
-      tft.println(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year) + " SD");
-    } else {
-      tft.println(String(reloj_1->dia) + "/" + String(reloj_1->mes) + "/" + String(reloj_1->year));
+      tft.setTextColor(MAGENTA);
+      tft.print("SD");
     }
-    tft.setCursor(OFFSET, 17 + OFFSET);
     if (gen->eeprom_activo) {
-      tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo) + "    M");
-    } else {
-      tft.println(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo));
+      tft.setTextColor(RED);
+      tft.print("M");
     }
+    tft.setTextColor(BLACK);
+    tft.println();
+    tft.setCursor(OFFSET, 15 + OFFSET);
+    tft.print(String(reloj_1->hora) + ":" + String(reloj_1->minuto) + ":" + String(reloj_1->segundo));
+    tft.setTextColor(RED);
+    if (gen->automatico) {
+      tft.print(" Aut");
+    } else {
+      tft.print(" Man");
+    }
+    tft.setTextColor(BLACK);
+    tft.println();
+
   } else {
     tft.fillRect(OFFSET + 1 * btn_width, OFFSET + (parametro)*btn_height, 70, 33, CYAN);
     tft.setCursor(OFFSET + 1 * btn_width, OFFSET + (parametro)*btn_height);
@@ -981,11 +993,14 @@ float ObtenerParametro() {
   switch (indice_medidor) {
     case 0:  // General
       switch (indice_parametro) {
-        case 0:  // constante
-          auxiliar = gen->color_pantalla;
+        case 0:  // automatico
+          auxiliar = gen->automatico;
           break;
-        case 1:  // constante
+        case 1:  // rom
           auxiliar = gen->eeprom_activo;
+          break;
+        case 2:  // color
+          auxiliar = gen->color_pantalla;
           break;
       }
       break;
@@ -1008,6 +1023,9 @@ float ObtenerParametro() {
           break;
         case 5:  // valor maximo
           auxiliar = nivel_alto->presion_max;
+          break;
+        case 6:  // intervalo
+          auxiliar = nivel_alto->intervalo_nivel;
           break;
         default:
 
@@ -1115,16 +1133,20 @@ void GuardarParametro(uint16_t valor) {
     case 0:  // General
 
       switch (indice_parametro) {
-        case 0:  // color
-          gen->color_pantalla = (uint8_t)valor;
-          tft.invertDisplay(gen->color_pantalla);
+        case 0:  // automatico
+          gen->automatico = (uint8_t)valor;
+          contador_compresor = 1;
           break;
-        case 1:  // reterncion de memoria
+        case 1:  // retencion de memoria
           if (CODIGO_GEN == valor) {
             Ress();
           }
           gen->eeprom_activo = (uint8_t)valor;
           auxiliar = VALOR_INVALIDO;
+          break;
+        case 2:  // color
+          gen->color_pantalla = (uint8_t)valor;
+          tft.invertDisplay(gen->color_pantalla);
           break;
       }
       break;
@@ -1153,6 +1175,11 @@ void GuardarParametro(uint16_t valor) {
         case 5:  // valor maximo
           nivel_alto->presion_max = valor;
           nivel_bajo->presion_max = valor;
+          break;
+        case 6:  // vintervalo
+          nivel_alto->intervalo_nivel = valor;
+          nivel_bajo->intervalo_nivel = valor;
+          contador_compresor = 1;
           break;
         default:
 

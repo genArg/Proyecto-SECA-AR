@@ -89,7 +89,7 @@ extern "C" {
 #define GEN_COLOR (0)
 #define GEN_PARAM_MEM (1)
 #define GEN_PARAM_TEMPORAL (2)
-
+#define GEN_AUTOMATICO (3)
 //Nivel
 #define NIV_CONSTANTE (10)
 #define NIV_I_MIN (11)
@@ -99,6 +99,7 @@ extern "C" {
 #define NIV_VAL_MAX (15)  //---->>>>>>>>>> POSIBLEMENTE NECESITE 16
 #define NIV_MULTIPLICADOR (16)
 #define NIV_SUMADOR (17)
+#define NIV_INTERVALO (18)
 //Presion
 #define PRESION_CONSTANTE (20)
 #define PRESION_I_MIN (21)
@@ -120,7 +121,7 @@ extern "C" {
 #define MEMORIA_INTERVALO (52)
 #define MEMORIA_MULTIPLICADOR (53)
 #define MEMORIA_SUMADOR (54)
-
+// RESS
 #define VALOR_UNIVERSAL_DIR (420)
 #define VALOR_UNIVERSAL (250)
 #define VALOR_UNIVERSAL_DIA_DIR (421)
